@@ -105,9 +105,11 @@ data DsMessage
 
   | DsTopLevelBindsNotAllowed !BindsType !(HsBindLR GhcTc GhcTc)
 
-  | DsUselessSpecialiseForClassMethodSelector !Id
+  | DsUselessSpecialiseForClassMethodSelector !Name
 
-  | DsUselessSpecialiseForNoInlineFunction !Id
+  | DsUselessSpecialiseForNoInlineFunction !Name
+
+  | DsUselessSpecialise !Name
 
   | DsOrphanRule !CoreRule
 

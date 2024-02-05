@@ -89,6 +89,9 @@ instance Diagnostic DsMessage where
     DsUselessSpecialiseForNoInlineFunction poly_id
       -> mkSimpleDecorated $
           text "Ignoring useless SPECIALISE pragma for NOINLINE function:" <+> quotes (ppr poly_id)
+    DsUselessSpecialise poly_id
+      -> mkSimpleDecorated $
+          text "Ignoring useless SPECIALISE pragma for:" <+> quotes (ppr poly_id)
     DsOrphanRule rule
       -> mkSimpleDecorated $ text "Orphan rule:" <+> ppr rule
     DsRuleLhsTooComplicated orig_lhs lhs2
@@ -109,7 +112,7 @@ instance Diagnostic DsMessage where
                        , text "is not bound in RULE lhs"])
                 2 (vcat [ text "Orig bndrs:" <+> ppr orig_bndrs
                         , text "Orig lhs:" <+> ppr orig_lhs
-                        , text "optimised lhs:" <+> ppr lhs2 ])
+                        , text "Optimised lhs:" <+> ppr lhs2 ])
 
            pp_bndr b
             | isTyVar b = text "type variable" <+> quotes (ppr b)
@@ -226,6 +229,7 @@ instance Diagnostic DsMessage where
     DsTopLevelBindsNotAllowed{}                 -> ErrorWithoutFlag
     DsUselessSpecialiseForClassMethodSelector{} -> WarningWithoutFlag
     DsUselessSpecialiseForNoInlineFunction{}    -> WarningWithoutFlag
+    DsUselessSpecialise{}                       -> WarningWithoutFlag
     DsOrphanRule{}                              -> WarningWithFlag Opt_WarnOrphans
     DsRuleLhsTooComplicated{}                   -> WarningWithoutFlag
     DsRuleIgnoredDueToConstructor{}             -> WarningWithoutFlag
@@ -262,6 +266,7 @@ instance Diagnostic DsMessage where
     DsTopLevelBindsNotAllowed{}                 -> noHints
     DsUselessSpecialiseForClassMethodSelector{} -> noHints
     DsUselessSpecialiseForNoInlineFunction{}    -> noHints
+    DsUselessSpecialise{}                       -> noHints
     DsOrphanRule{}                              -> noHints
     DsRuleLhsTooComplicated{}                   -> noHints
     DsRuleIgnoredDueToConstructor{}             -> noHints

@@ -2164,7 +2164,9 @@ data Pragma = InlineP         Name Inline RuleMatch Phases
             | OpaqueP         Name
             -- ^ @{ {\-\# OPAQUE T #-} }@
             | SpecialiseP     Name Type (Maybe Inline) Phases
-            -- ^ @{ {\-\# SPECIALISE [INLINE] [phases] T #-} }@
+            -- ^ @{ {\-\# SPECIALISE [INLINE] [phases] nm :: ty #-} }@
+            | SpecialiseEP    (Maybe [TyVarBndr ()]) [RuleBndr] Exp (Maybe Inline) Phases
+            -- ^ @{ {\-\# SPECIALISE [INLINE] [phases] exp #-} }@
             | SpecialiseInstP Type
             -- ^ @{ {\-\# SPECIALISE instance I #-} }@
             | RuleP           String (Maybe [TyVarBndr ()]) [RuleBndr] Exp Exp Phases

@@ -149,6 +149,7 @@ type family GhcDiagnosticCode c = n | n -> c where
   GhcDiagnosticCode "DsTopLevelBindsNotAllowed"                     = 48099
   GhcDiagnosticCode "DsUselessSpecialiseForClassMethodSelector"     = 93315
   GhcDiagnosticCode "DsUselessSpecialiseForNoInlineFunction"        = 38524
+  GhcDiagnosticCode "DsUselessSpecialise"                           = 66582
   GhcDiagnosticCode "DsOrphanRule"                                  = 58181
   GhcDiagnosticCode "DsRuleLhsTooComplicated"                       = 69441
   GhcDiagnosticCode "DsRuleIgnoredDueToConstructor"                 = 00828
@@ -290,6 +291,7 @@ type family GhcDiagnosticCode c = n | n -> c where
   GhcDiagnosticCode "PsErrInvalidPun"                               = 52943
   GhcDiagnosticCode "PsErrIllegalOrPat"                             = 29847
   GhcDiagnosticCode "PsErrTypeSyntaxInPat"                          = 32181
+  GhcDiagnosticCode "PsErrSpecExprMultipleTypeAscription"           = 62037
 
   -- Driver diagnostic codes
   GhcDiagnosticCode "DriverMissingHomeModules"                      = 32850
@@ -525,6 +527,7 @@ type family GhcDiagnosticCode c = n | n -> c where
   GhcDiagnosticCode "TcRnMisplacedSigDecl"                          = 87866
   GhcDiagnosticCode "TcRnUnexpectedDefaultSig"                      = 40700
   GhcDiagnosticCode "TcRnDuplicateMinimalSig"                       = 85346
+  GhcDiagnosticCode "TcRnSpecSigShape"                              = 93944
   GhcDiagnosticCode "TcRnLoopySuperclassSolve"                      = Outdated 36038
   GhcDiagnosticCode "TcRnUnexpectedStandaloneDerivingDecl"          = 95159
   GhcDiagnosticCode "TcRnUnusedVariableInRuleDecl"                  = 65669

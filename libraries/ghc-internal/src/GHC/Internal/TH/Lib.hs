@@ -565,6 +565,31 @@ pragSpecInlD n ty inline phases
       ty1    <- ty
       pure $ PragmaD $ SpecialiseP n ty1 (Just inline) phases
 
+pragSpecED :: Quote m
+           => Maybe [m (TyVarBndr ())] -> [m RuleBndr]
+           -> m Exp
+           -> Phases
+           -> m Dec
+pragSpecED ty_bndrs tm_bndrs expr phases
+  = do
+      ty_bndrs1    <- traverse sequenceA ty_bndrs
+      tm_bndrs1    <- sequenceA tm_bndrs
+      expr1        <- expr
+      pure $ PragmaD $ SpecialiseEP ty_bndrs1 tm_bndrs1 expr1 Nothing phases
+
+pragSpecInlED :: Quote m
+              => Maybe [m (TyVarBndr ())] -> [m RuleBndr]
+              -> m Exp
+              -> Inline
+              -> Phases
+              -> m Dec
+pragSpecInlED ty_bndrs tm_bndrs expr inl phases
+  = do
+      ty_bndrs1    <- traverse sequenceA ty_bndrs
+      tm_bndrs1    <- sequenceA tm_bndrs
+      expr1        <- expr
+      pure $ PragmaD $ SpecialiseEP ty_bndrs1 tm_bndrs1 expr1 (Just inl) phases
+
 pragSpecInstD :: Quote m => m Type -> m Dec
 pragSpecInstD ty
   = do
