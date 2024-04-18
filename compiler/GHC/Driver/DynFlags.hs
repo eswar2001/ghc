@@ -1191,6 +1191,16 @@ defaultFlags settings
 
     ++ validHoleFitDefaults
 
+    -- Platform/OS specific stuff
+    ++ case platformOS platform of
+        -- On mac in edge cases we end up with very large text sections
+        -- so enable HugeTextSections by default to generate jumps compatible
+        -- with those.
+        OSDarwin
+          | platformArch platform == ArchAArch64
+          -> [Opt_HugeCodeSections]
+        _ -> []
+
 
     where platform = sTargetPlatform settings
 
