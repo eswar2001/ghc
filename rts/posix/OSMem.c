@@ -74,8 +74,8 @@
 # endif
 #endif
 
-int huge_tried = 0;
-int huge_failed = 0;
+static int huge_tried = 0;
+static int huge_failed = 0;
 
 static void *next_request = 0;
 
