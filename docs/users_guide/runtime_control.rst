@@ -397,6 +397,16 @@ Miscellaneous RTS options
     heap larger than 1T. ``-xr`` is a no-op if GHC is configured with
     ``--disable-large-address-space`` or if the platform is 32-bit.
 
+.. rts-flag:: -xH
+
+    This option enables using huge pages to back memory allocations.
+    Use of huge pages can make memory lookups more efficient for applications
+    with high memory usage.
+    Currently we only support 2MB hugepages on Linux.
+
+    If huge pages aren't available to back allocations, then we fall back to
+    regular pages.
+
 .. _rts-options-gc:
 
 RTS options to control the garbage collector
