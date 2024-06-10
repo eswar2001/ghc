@@ -24,6 +24,7 @@ import Data.Maybe
 import Data.Word
 
 import Data.ByteString ( ByteString )
+import qualified Data.Text.Encoding as T
 import qualified Data.ByteString as BS
 
 import qualified GHC.LanguageExtensions as LangExt
@@ -136,7 +137,7 @@ lexStringLiteral :: P (LocatedN RdrName) -- ^ A precise identifier parser
 lexStringLiteral identParser (L l sl@(StringLiteral _ fs _))
   = L l (WithHsDocIdentifiers sl idents)
   where
-    bs = bytesFS fs
+    bs = T.encodeUtf8 fs
 
     idents = mapMaybe (uncurry (validateIdentWith identParser)) plausibleIdents
 

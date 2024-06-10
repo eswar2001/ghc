@@ -22,8 +22,6 @@ import Language.Haskell.Syntax.Extension
 
 import GHC.Types.SourceText (IntegralLit, FractionalLit, SourceText)
 
-import GHC.Data.FastString (FastString, lexicalCompareFS)
-
 import Data.ByteString (ByteString)
 import Data.Data hiding ( Fixity )
 import Data.Bool
@@ -31,6 +29,7 @@ import Data.Ord
 import Data.Eq
 import Data.Char
 import Prelude (Integer)
+import Data.Text (Text)
 
 {-
 ************************************************************************
@@ -50,9 +49,9 @@ data HsLit x
       -- ^ Character
   | HsCharPrim (XHsCharPrim x) {- SourceText -} Char
       -- ^ Unboxed character
-  | HsString (XHsString x) {- SourceText -} FastString
+  | HsString (XHsString x) {- SourceText -} Text
       -- ^ String
-  | HsMultilineString (XHsMultilineString x) {- SourceText -} FastString
+  | HsMultilineString (XHsMultilineString x) {- SourceText -} Text
       -- ^ String
   | HsStringPrim (XHsStringPrim x) {- SourceText -} !ByteString
       -- ^ Packed bytes
@@ -115,7 +114,7 @@ data HsOverLit p
 data OverLitVal
   = HsIntegral   !IntegralLit            -- ^ Integer-looking literals;
   | HsFractional !FractionalLit          -- ^ Frac-looking literals
-  | HsIsString   !SourceText !FastString -- ^ String-looking literals
+  | HsIsString   !SourceText !Text       -- ^ String-looking literals
   deriving Data
 
 instance Eq OverLitVal where
@@ -131,6 +130,6 @@ instance Ord OverLitVal where
   compare (HsFractional f1)   (HsFractional f2)   = f1 `compare` f2
   compare (HsFractional _)    (HsIntegral   _)    = GT
   compare (HsFractional _)    (HsIsString _ _)    = LT
-  compare (HsIsString _ s1)   (HsIsString _ s2)   = s1 `lexicalCompareFS` s2
+  compare (HsIsString _ s1)   (HsIsString _ s2)   = s1 `compare` s2
   compare (HsIsString _ _)    (HsIntegral   _)    = GT
   compare (HsIsString _ _)    (HsFractional _)    = GT

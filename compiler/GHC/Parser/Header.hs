@@ -142,7 +142,6 @@ mkPrelImports this_mod loc implicit_prelude import_decls
             NoRawPkgQual -> True
             RawPkgQual {} -> False
 
-
       loc' = noAnnSrcSpan loc
       preludeImportDecl :: LImportDecl GhcPs
       preludeImportDecl

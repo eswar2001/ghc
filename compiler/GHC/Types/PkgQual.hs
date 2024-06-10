@@ -9,6 +9,7 @@ import GHC.Unit.Types
 import GHC.Utils.Outputable
 
 import Data.Data
+import qualified Data.Text as T
 
 -- | Package-qualifier as it was parsed
 data RawPkgQual
@@ -30,7 +31,7 @@ instance Outputable RawPkgQual where
   ppr = \case
     NoRawPkgQual -> empty
     RawPkgQual (StringLiteral st p _)
-      -> pprWithSourceText st (doubleQuotes (ftext p))
+      -> pprWithSourceText st (doubleQuotes (text $ T.unpack p))
 
 instance Outputable PkgQual where
   ppr = \case

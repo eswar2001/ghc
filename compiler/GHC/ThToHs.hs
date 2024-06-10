@@ -56,6 +56,7 @@ import Data.Bifunctor (first)
 import Data.Foldable (for_)
 import Data.List.NonEmpty( NonEmpty (..), nonEmpty )
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Text as T
 import Data.Maybe( catMaybes, isNothing )
 import Data.Word (Word64)
 import GHC.Internal.TH.Syntax as TH
@@ -970,7 +971,7 @@ cvtPragmaD (CompleteP cls mty)
 cvtPragmaD (SCCP nm str) = do
   nm' <- vcNameN nm
   str' <- traverse (\s ->
-    returnLA $ StringLiteral NoSourceText (mkFastString s) Nothing) str
+    returnLA $ StringLiteral NoSourceText (T.pack s) Nothing) str
   returnJustLA $ Hs.SigD noExtField
     $ SCCFunSig (noAnn, SourceText $ fsLit "{-# SCC") nm' str'
 
@@ -1171,7 +1172,7 @@ cvtl e = wrapLA (cvt e)
                               -- constructor names - see #14627.
                               { s' <- vcName s
                               ; wrapParLA (HsVar noExtField) s' }
-    cvt (LabelE s)       = return $ HsOverLabel NoSourceText (fsLit s)
+    cvt (LabelE s)       = return $ HsOverLabel NoSourceText (T.pack s)
     cvt (ImplicitParamVarE n) = do { n' <- ipName n; return $ HsIPVar noExtField n' }
     cvt (GetFieldE exp f) = do { e' <- cvtl exp
                                ; return $ HsGetField noExtField e'
@@ -1388,9 +1389,7 @@ cvtOverLit (IntegerL i)
 cvtOverLit (RationalL r)
   = do { force r; return $ mkHsFractional (mkTHFractionalLit r) }
 cvtOverLit (StringL s)
-  = do { let { s' = mkFastString s }
-       ; force s'
-       ; return $ mkHsIsString (quotedSourceText s) s'
+  = do { force s; return $ mkHsIsString (quotedSourceText s) (T.pack s)
        }
 cvtOverLit _ = panic "Convert.cvtOverLit: Unexpected overloaded literal"
 -- An Integer is like an (overloaded) '3' in a Haskell source program
@@ -1426,9 +1425,7 @@ cvtLit (DoublePrimL f)
   = do { force f; return $ HsDoublePrim noExtField (mkTHFractionalLit f) }
 cvtLit (CharL c)       = do { force c; return $ HsChar NoSourceText c }
 cvtLit (CharPrimL c)   = do { force c; return $ HsCharPrim NoSourceText c }
-cvtLit (StringL s)     = do { let { s' = mkFastString s }
-                            ; force s'
-                            ; return $ HsString (quotedSourceText s) s' }
+cvtLit (StringL s)     = do { return $ HsString (quotedSourceText s) (T.pack s) }
 cvtLit (StringPrimL s) = do { let { !s' = BS.pack s }
                             ; return $ HsStringPrim NoSourceText s' }
 cvtLit (BytesPrimL (Bytes fptr off sz)) = do
@@ -1940,7 +1937,7 @@ split_ty_app ty = go ty []
 
 cvtTyLit :: TH.TyLit -> HsTyLit (GhcPass p)
 cvtTyLit (TH.NumTyLit i) = HsNumTy NoSourceText i
-cvtTyLit (TH.StrTyLit s) = HsStrTy NoSourceText (fsLit s)
+cvtTyLit (TH.StrTyLit s) = HsStrTy NoSourceText (T.pack s)
 cvtTyLit (TH.CharTyLit c) = HsCharTy NoSourceText c
 
 {- | @cvtOpAppT x op y@ converts @op@ and @y@ and produces the operator
@@ -2158,7 +2155,7 @@ fldNameN con n = wrapLN (fldName con n)
 ipName :: String -> CvtM HsIPName
 ipName n
   = do { unless (okVarOcc n) (failWith (IllegalOccName OccName.varName n))
-       ; return (HsIPName (fsLit n)) }
+       ; return (HsIPName (T.pack n)) }
 
 cvtName :: OccName.NameSpace -> TH.Name -> CvtM RdrName
 cvtName ctxt_ns (TH.Name occ flavour)

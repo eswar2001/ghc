@@ -70,6 +70,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import Data.Maybe ( isJust, mapMaybe )
 import Data.Void
+import qualified Data.Text as T
 
 import Lookup
 import Utils
@@ -2208,7 +2209,7 @@ instance ExactPrint StringLiteral where
   setAnnotationAnchor a _ _ _ = a
 
   exact (StringLiteral src fs mcomma) = do
-    printSourceTextAA src (show (unpackFS fs))
+    printSourceTextAA src (show fs)
     mcomma' <- mapM (\r -> printStringAtNC r ",") mcomma
     return (StringLiteral src fs mcomma')
 
@@ -2219,7 +2220,7 @@ instance ExactPrint FastString where
   setAnnotationAnchor a _ _ _ = a
 
   -- TODO: https://ghc.haskell.org/trac/ghc/ticket/10313 applies.
-  -- exact fs = printStringAdvance (show (unpackFS fs))
+  -- exact fs = printStringAdvance (show fs)
   exact fs = printStringAdvance (unpackFS fs) >> return fs
 
 -- ---------------------------------------------------------------------
@@ -2807,7 +2808,7 @@ instance ExactPrint HsIPName where
   getAnnotationEntry = const NoEntryVal
   setAnnotationAnchor a _ _ _ = a
 
-  exact i@(HsIPName fs) = printStringAdvanceA ("?" ++ (unpackFS fs)) >> return i
+  exact i@(HsIPName fs) = printStringAdvanceA ("?" ++ (T.unpack fs)) >> return i
 
 -- ---------------------------------------------------------------------
 -- Managing lists which have been separated, e.g. Sigs and Binds
@@ -3090,12 +3091,12 @@ instance ExactPrint (HsExpr GhcPs) where
   exact x@(HsOverLabel src l) = do
     printStringAdvanceA "#" >> return ()
     case src of
-      NoSourceText   -> printStringAdvanceA (unpackFS l)  >> return ()
+      NoSourceText   -> printStringAdvanceA (T.unpack l)  >> return ()
       SourceText txt -> printStringAdvanceA (unpackFS txt) >> return ()
     return x
 
   exact x@(HsIPVar _ (HsIPName n))
-    = printStringAdvance ("?" ++ unpackFS n) >> return x
+    = printStringAdvance ("?" ++ T.unpack n) >> return x
 
   exact x@(HsOverLit _an ol) = do
     let str = case ol_val ol of
@@ -3419,7 +3420,7 @@ instance ExactPrint (HsPragE GhcPs) where
 
   exact (HsPragSCC (an,st) sl) = do
     an0 <- markAnnOpenP' an st "{-# SCC"
-    let txt = sourceTextToString (sl_st sl) (unpackFS $ sl_fs sl)
+    let txt = sourceTextToString (sl_st sl) (T.unpack $ sl_fs sl)
     an1 <- markEpAnnLMS'' an0 lapr_rest AnnVal    (Just txt) -- optional
     an2 <- markEpAnnLMS'' an1 lapr_rest AnnValStr (Just txt) -- optional
     an3 <- markAnnCloseP' an2
@@ -3447,7 +3448,7 @@ instance ExactPrint (HsUntypedSplice GhcPs) where
     unless pMarkLayout $ setLayoutOffsetP 0
     printStringAdvance
             -- Note: Lexer.x does not provide unicode alternative. 2017-02-26
-            ("[" ++ (showPprUnsafe q) ++ "|" ++ (unpackFS fs) ++ "|]")
+            ("[" ++ (showPprUnsafe q) ++ "|" ++ (T.unpack fs) ++ "|]")
     unless pMarkLayout $ setLayoutOffsetP oldOffset
     return (HsQuasiQuote an q (L l fs))
 
@@ -4610,7 +4611,7 @@ instance ExactPrint (LocatedP CType) where
              Nothing -> return an0
              Just (Header srcH _h) ->
                markEpAnnLMS an0 lapr_rest AnnHeader (Just (toSourceTextWithSuffix srcH "" ""))
-    an2 <- markEpAnnLMS an1 lapr_rest AnnVal (Just (toSourceTextWithSuffix stct (unpackFS ct) ""))
+    an2 <- markEpAnnLMS an1 lapr_rest AnnVal (Just (toSourceTextWithSuffix stct (T.unpack ct) ""))
     an3 <- markAnnCloseP an2
     return (L an3 (CType stp mh (stct,ct)))
 

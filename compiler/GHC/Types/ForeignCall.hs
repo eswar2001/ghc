@@ -29,6 +29,9 @@ import GHC.Types.SourceText ( SourceText, pprWithSourceText )
 
 import Data.Char
 import Data.Data
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 
 {-
 ************************************************************************
@@ -238,13 +241,13 @@ instance Outputable Header where
 -- For details on above see Note [exact print annotations] in "GHC.Parser.Annotation"
 data CType = CType SourceText -- See Note [Pragma source text] in "GHC.Types.SourceText"
                    (Maybe Header) -- header to include for this type
-                   (SourceText,FastString) -- the type itself
+                   (SourceText,Text) -- the type itself
     deriving (Eq, Data)
 
 instance Outputable CType where
     ppr (CType stp mh (stct,ct))
       = pprWithSourceText stp (text "{-# CTYPE") <+> hDoc
-        <+> pprWithSourceText stct (doubleQuotes (ftext ct)) <+> text "#-}"
+        <+> pprWithSourceText stct (doubleQuotes (text $ T.unpack ct)) <+> text "#-}"
         where hDoc = case mh of
                      Nothing -> empty
                      Just h -> ppr h
@@ -337,13 +340,16 @@ instance Binary CCallConv where
               _ -> return JavaScriptCallConv
 
 instance Binary CType where
-    put_ bh (CType s mh fs) = do put_ bh s
-                                 put_ bh mh
-                                 put_ bh fs
+    put_ bh (CType s mh (st, txt)) =
+      do put_ bh s
+         put_ bh mh
+         put_ bh st
+         put_ bh $ T.encodeUtf8 txt
     get bh = do s  <- get bh
                 mh <- get bh
-                fs <- get bh
-                return (CType s mh fs)
+                st <- get bh
+                bs <- get bh
+                return (CType s mh (st,T.decodeUtf8 bs))
 
 instance Binary Header where
     put_ bh (Header s h) = put_ bh s >> put_ bh h

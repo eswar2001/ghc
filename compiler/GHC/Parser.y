@@ -98,6 +98,8 @@ import GHC.Builtin.Types ( unitTyCon, unitDataCon, sumTyCon,
 import Language.Haskell.Syntax.Basic (FieldLabelString(..))
 
 import qualified Data.Semigroup as Semi
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 }
 
 %expect 0 -- shift/reduce conflicts
@@ -828,7 +830,7 @@ moduleid :: { LHsModuleId PackageName }
           | unitid ':' modid    { sLL $1 $> $ HsModuleId $1 (reLoc $3) }
 
 pkgname :: { Located PackageName }
-        : STRING     { sL1 $1 $ PackageName (getSTRING $1) }
+        : STRING     { sL1 $1 $ PackageName (mkFastString $ getSTRING $1) }
         | litpkgname { sL1 $1 $ PackageName (unLoc $1) }
 
 litpkgname_segment :: { Located FastString }
@@ -1162,11 +1164,11 @@ maybe_safe :: { (Maybe EpaLocation,Bool) }
         | {- empty -}                           { (Nothing,      False) }
 
 maybe_pkg :: { (Maybe EpaLocation, RawPkgQual) }
-        : STRING  {% do { let { pkgFS = getSTRING $1 }
-                        ; unless (looksLikePackageName (unpackFS pkgFS)) $
+        : STRING  {% do { let { pkgS = getSTRING $1 }
+                        ; unless (looksLikePackageName pkgS) $
                              addError $ mkPlainErrorMsgEnvelope (getLoc $1) $
-                               (PsErrInvalidPackageName pkgFS)
-                        ; return (Just (glR $1), RawPkgQual (StringLiteral (getSTRINGs $1) pkgFS Nothing)) } }
+                               (PsErrInvalidPackageName pkgS)
+                        ; return (Just (glR $1), RawPkgQual (StringLiteral (getSTRINGs $1) (T.pack pkgS) Nothing)) } }
         | {- empty -}                           { (Nothing,NoRawPkgQual) }
 
 optqualified :: { Located (Maybe EpaLocation) }
@@ -1641,12 +1643,12 @@ datafam_inst_hdr :: { Located (Maybe (LHsContext GhcPs), HsOuterFamEqnTyVarBndrs
 
 capi_ctype :: { Maybe (LocatedP CType) }
 capi_ctype : '{-# CTYPE' STRING STRING '#-}'
-                       {% fmap Just $ amsr (sLL $1 $> (CType (getCTYPEs $1) (Just (Header (getSTRINGs $2) (getSTRING $2)))
-                                        (getSTRINGs $3,getSTRING $3)))
+                       {% fmap Just $ amsr (sLL $1 $> (CType (getCTYPEs $1) (Just (Header (getSTRINGs $2) (mkFastString $ getSTRING $2)))
+                                        (getSTRINGs $3,T.pack $ getSTRING $3)))
                               (AnnPragma (mo $1) (mc $4) [mj AnnHeader $2,mj AnnVal $3]) }
 
            | '{-# CTYPE'        STRING '#-}'
-                       {% fmap Just $ amsr (sLL $1 $> (CType (getCTYPEs $1) Nothing (getSTRINGs $2, getSTRING $2)))
+                       {% fmap Just $ amsr (sLL $1 $> (CType (getCTYPEs $1) Nothing (getSTRINGs $2, T.pack $ getSTRING $2)))
                               (AnnPragma (mo $1) (mc $3) [mj AnnVal $2]) }
 
            |           { Nothing }
@@ -1914,7 +1916,7 @@ rule    :: { LRuleDecl GhcPs }
            runPV (unECP $6) >>= \ $6 ->
            amsA' (sLL $1 $> $ HsRule
                                    { rd_ext = (((fstOf3 $3) (mj AnnEqual $5 : (fst $2))), getSTRINGs $1)
-                                   , rd_name = L (noAnnSrcSpan $ gl $1) (getSTRING $1)
+                                   , rd_name = L (noAnnSrcSpan $ gl $1) (mkFastString $ getSTRING $1)
                                    , rd_act = (snd $2) `orElse` AlwaysActive
                                    , rd_tyvs = sndOf3 $3, rd_tmvs = thdOf3 $3
                                    , rd_lhs = $4, rd_rhs = $6 }) }
@@ -2011,7 +2013,7 @@ maybe_warning_pragma :: { Maybe (LWarningTxt GhcPs) }
 
 warning_category :: { Maybe (LocatedE InWarningCategory) }
         : 'in' STRING                  { Just (reLoc $ sLL $1 $> $ InWarningCategory (epTok $1) (getSTRINGs $2)
-                                                                    (reLoc $ sL1 $2 $ mkWarningCategory (getSTRING $2))) }
+                                                                    (reLoc $ sL1 $2 $ mkWarningCategory (mkFastString $ getSTRING $2))) }
         | {- empty -}                  { Nothing }
 
 warnings :: { OrdList (LWarnDecl GhcPs) }
@@ -2136,7 +2138,7 @@ fspec :: { Located ([AddEpAnn]
                                              ,(L (getLoc $1)
                                                     (getStringLiteral $1), $2, $4)) }
        |        var '::' sigtype        { sLL $1 $> ([mu AnnDcolon $2]
-                                             ,(noLoc (StringLiteral NoSourceText nilFS Nothing), $1, $3)) }
+                                             ,(noLoc (StringLiteral NoSourceText T.empty Nothing), $1, $3)) }
          -- if the entity string is missing, it defaults to the empty string;
          -- the meaning of an empty entity string depends on the calling
          -- convention
@@ -2357,9 +2359,9 @@ atype :: { LHsType GhcPs }
         | CHAR                 { sLLa $1 $> $ HsTyLit noExtField $ HsCharTy (getCHARs $1)
                                                                         (getCHAR $1) }
         | STRING               { sLLa $1 $> $ HsTyLit noExtField $ HsStrTy (getSTRINGs $1)
-                                                                     (getSTRING  $1) }
+                                                                     (T.pack $ getSTRING  $1) }
         | STRING_MULTI         { sLLa $1 $> $ HsTyLit noExtField $ HsStrTy (getSTRINGMULTIs $1)
-                                                                     (getSTRINGMULTI  $1) }
+                                                                     (T.pack $ getSTRINGMULTI  $1) }
         -- Type variables are never exported, so `M.tyvar` will be rejected by the renamer.
         -- We let it pass the parser because the renamer can generate a better error message.
         | QVARID                      {% let qname = mkQual tvName (getQVARID $1)
@@ -2787,8 +2789,8 @@ explicit_activation :: { ([AddEpAnn],Activation) }  -- In brackets
 quasiquote :: { Located (HsUntypedSplice GhcPs) }
         : TH_QUASIQUOTE   { let { loc = getLoc $1
                                 ; ITquasiQuote (quoter, quote, quoteSpan) = unLoc $1
-                                ; quoterId = mkUnqual varName quoter }
-                            in sL1 $1 (HsQuasiQuote noExtField quoterId (L (noAnnSrcSpan (mkSrcSpanPs quoteSpan)) quote)) }
+; quoterId = mkUnqual varName quoter }
+in sL1 $1 (HsQuasiQuote noExtField quoterId (L (noAnnSrcSpan (mkSrcSpanPs quoteSpan)) quote)) }
         | TH_QQUASIQUOTE  { let { loc = getLoc $1
                                 ; ITqQuasiQuote (qual, quoter, quote, quoteSpan) = unLoc $1
                                 ; quoterId = mkQual varName (qual, quoter) }
@@ -2963,7 +2965,7 @@ prag_e :: { Located (HsPragE GhcPs) }
                                              (HsPragSCC
                                                (AnnPragma (mo $1) (mc $3) [mj AnnVal $2],
                                                (getSCC_PRAGs $1))
-                                               (StringLiteral NoSourceText (getVARID $2) Nothing)) }
+                                               (StringLiteral NoSourceText (fastStringToText $ getVARID $2) Nothing)) }
 
 fexp    :: { ECP }
         : fexp aexp                  { ECP $
@@ -3695,7 +3697,7 @@ ipvar   :: { Located HsIPName }
 -----------------------------------------------------------------------------
 -- Overloaded labels
 
-overloaded_label :: { Located (SourceText, FastString) }
+overloaded_label :: { Located (SourceText, T.Text) }
         : LABELVARID          { sL1 $1 (getLABELVARIDs $1, getLABELVARID $1) }
 
 -----------------------------------------------------------------------------
@@ -4067,9 +4069,9 @@ consym :: { LocatedN RdrName }
 literal :: { Located (HsLit GhcPs) }
         : CHAR              { sL1 $1 $ HsChar       (getCHARs $1) $ getCHAR $1 }
         | STRING            { sL1 $1 $ HsString     (getSTRINGs $1)
-                                                    $ getSTRING $1 }
+                                                    $ T.pack $ getSTRING $1 }
         | STRING_MULTI      { sL1 $1 $ HsMultilineString (getSTRINGMULTIs $1)
-                                                    $ getSTRINGMULTI $1 }
+                                                    $ T.pack $ getSTRINGMULTI $1 }
         | PRIMINTEGER       { sL1 $1 $ HsIntPrim    (getPRIMINTEGERs $1)
                                                     $ getPRIMINTEGER $1 }
         | PRIMWORD          { sL1 $1 $ HsWordPrim   (getPRIMWORDs $1)
@@ -4237,7 +4239,7 @@ getOVERLAPS_PRAGs     (L _ (IToverlaps_prag     src)) = src
 getINCOHERENT_PRAGs   (L _ (ITincoherent_prag   src)) = src
 getCTYPEs             (L _ (ITctype             src)) = src
 
-getStringLiteral l = StringLiteral (getSTRINGs l) (getSTRING l) Nothing
+getStringLiteral l = StringLiteral (getSTRINGs l) (T.pack $ getSTRING l) Nothing
 
 isUnicode :: Located Token -> Bool
 isUnicode (L _ (ITforall         iu)) = iu == UnicodeSyntax
@@ -4262,12 +4264,12 @@ hasE (L _ (ITopenExpQuote HasE _)) = True
 hasE (L _ (ITopenTExpQuote HasE))  = True
 hasE _                             = False
 
-getSCC :: Located Token -> P FastString
+getSCC :: Located Token -> P T.Text
 getSCC lt = do let s = getSTRING lt
                -- We probably actually want to be more restrictive than this
-               if ' ' `elem` unpackFS s
+               if ' ' `elem` s
                    then addFatalError $ mkPlainErrorMsgEnvelope (getLoc lt) $ PsErrSpaceInSCC
-                   else return s
+                   else return (T.pack s)
 
 stringLiteralToHsDocWst :: Located StringLiteral -> LocatedE (WithHsDocIdentifiers StringLiteral GhcPs)
 stringLiteralToHsDocWst  sl = reLoc $ lexStringLiteral parseIdentifier sl

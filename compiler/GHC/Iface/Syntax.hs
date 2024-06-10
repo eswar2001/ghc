@@ -52,6 +52,9 @@ module GHC.Iface.Syntax (
 import GHC.Prelude
 
 import GHC.Data.FastString
+import Data.Text (Text)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
 import GHC.Builtin.Names ( unrestrictedFunTyConKey, liftedTypeKindTyConKey,
                            constraintKindTyConKey )
 import GHC.Types.Unique ( hasKey )
@@ -376,7 +379,7 @@ data IfaceWarningTxt
   | IfDeprecatedTxt                      SourceText [(IfaceStringLiteral, [IfExtName])]
 
 data IfaceStringLiteral
-  = IfStringLiteral SourceText FastString
+  = IfStringLiteral SourceText Text
 
 data IfaceAnnotation
   = IfaceAnnotation {
@@ -790,7 +793,7 @@ instance Outputable IfaceWarningTxt where
         pp_with_name = ppr . fst
 
 instance Outputable IfaceStringLiteral where
-    ppr (IfStringLiteral st fs) = pprWithSourceText st (ftext fs)
+    ppr (IfStringLiteral st fs) = pprWithSourceText st (text $ T.unpack fs)
 
 instance Outputable IfaceAnnotation where
   ppr (IfaceAnnotation target value) = ppr target <+> colon <+> ppr value
@@ -2377,8 +2380,8 @@ instance Binary IfaceWarningTxt where
         _ -> pure IfDeprecatedTxt <*> get bh <*> get bh
 
 instance Binary IfaceStringLiteral where
-    put_ bh (IfStringLiteral a1 a2) = put_ bh a1 *> put_ bh a2
-    get bh = IfStringLiteral <$> get bh <*> get bh
+    put_ bh (IfStringLiteral a1 a2) = put_ bh a1 *> put_ bh (T.encodeUtf8 a2)
+    get bh = IfStringLiteral <$> get bh <*> (T.decodeUtf8 <$> get bh)
 
 instance Binary IfaceAnnotation where
     put_ bh (IfaceAnnotation a1 a2) = do

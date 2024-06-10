@@ -70,6 +70,7 @@ import GHCi.RemoteTypes ( ForeignRef )
 import qualified GHC.Internal.TH.Syntax as TH (Q)
 
 import qualified GHC.LanguageExtensions as LangExt
+import qualified Data.Text as T
 
 {-
 ************************************************************************
@@ -414,7 +415,7 @@ makePending flavour n (HsQuasiQuote _ quoter quote)
 
 ------------------
 mkQuasiQuoteExpr :: UntypedSpliceFlavour -> Name
-                 -> XRec GhcPs FastString
+                 -> XRec GhcPs T.Text
                  -> LHsExpr GhcRn
 -- Return the expression (quoter "...quote...")
 -- which is what we must run in a quasi-quote

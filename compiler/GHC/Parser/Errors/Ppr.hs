@@ -512,7 +512,7 @@ instance Diagnostic PsMessage where
              tc' = ppr $ filterCTuple tc
     PsErrInvalidPackageName pkg
       -> mkSimpleDecorated $ vcat
-            [ text "Parse error" <> colon <+> quotes (ftext pkg)
+            [ text "Parse error" <> colon <+> quotes (text pkg)
             , text "Version number or non-alphanumeric" <+>
               text "character in package name"
             ]

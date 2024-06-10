@@ -38,6 +38,8 @@ import Language.Haskell.Syntax.Expr ( HsExpr )
 import Language.Haskell.Syntax.Extension
 import Language.Haskell.Syntax.Lit
 
+import qualified Data.Text as T
+
 {-
 ************************************************************************
 *                                                                      *
@@ -216,10 +218,10 @@ Equivalently it's True if
 instance IsPass p => Outputable (HsLit (GhcPass p)) where
     ppr (HsChar st c)       = pprWithSourceText st (pprHsChar c)
     ppr (HsCharPrim st c)   = pprWithSourceText st (pprPrimChar c)
-    ppr (HsString st s)     = pprWithSourceText st (pprHsString s)
+    ppr (HsString st s)     = pprWithSourceText st (pprHsString (T.unpack s))
     ppr (HsMultilineString st s) =
       case st of
-        NoSourceText -> pprHsString s
+        NoSourceText -> pprHsString (T.unpack s)
         SourceText src -> vcat $ map text $ split '\n' (unpackFS src)
     ppr (HsStringPrim st s) = pprWithSourceText st (pprHsBytes s)
     ppr (HsInt _ i)
@@ -250,7 +252,7 @@ instance OutputableBndrId p
 instance Outputable OverLitVal where
   ppr (HsIntegral i)     = pprWithSourceText (il_text i) (integer (il_value i))
   ppr (HsFractional f)   = ppr f
-  ppr (HsIsString st s)  = pprWithSourceText st (pprHsString s)
+  ppr (HsIsString st s)  = pprWithSourceText st (pprHsString (T.unpack s))
 
 -- | pmPprHsLit pretty prints literals and is used when pretty printing pattern
 -- match warnings. All are printed the same (i.e., without hashes if they are
@@ -261,8 +263,8 @@ instance Outputable OverLitVal where
 pmPprHsLit :: forall p. IsPass p => HsLit (GhcPass p) -> SDoc
 pmPprHsLit (HsChar _ c)       = pprHsChar c
 pmPprHsLit (HsCharPrim _ c)   = pprHsChar c
-pmPprHsLit (HsString st s)    = pprWithSourceText st (pprHsString s)
-pmPprHsLit (HsMultilineString st s) = pprWithSourceText st (pprHsString s)
+pmPprHsLit (HsString st s)    = pprWithSourceText st (pprHsString (T.unpack s))
+pmPprHsLit (HsMultilineString st s) = pprWithSourceText st (pprHsString (T.unpack s))
 pmPprHsLit (HsStringPrim _ s) = pprHsBytes s
 pmPprHsLit (HsInt _ i)        = integer (il_value i)
 pmPprHsLit (HsIntPrim _ i)    = integer i

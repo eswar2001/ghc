@@ -60,6 +60,7 @@ import GHC.Utils.Encoding
 
 import Data.Maybe
 import Data.List (nub)
+import qualified Data.Text as T
 
 dsCFExport:: Id                 -- Either the exported Id,
                                 -- or the foreign-export-dynamic constructor
@@ -345,7 +346,7 @@ toCType = f False
            -- anything, as it may be the synonym that is annotated.
            | Just tycon <- tyConAppTyConPicky_maybe t
            , Just (CType _ mHeader (_,cType)) <- tyConCType_maybe tycon
-              = (mHeader, ftext cType)
+              = (mHeader, text $ T.unpack cType)
            -- If we don't know a C type for this type, then try looking
            -- through one layer of type synonym etc.
            | Just t' <- coreView t

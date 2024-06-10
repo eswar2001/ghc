@@ -718,7 +718,7 @@ exprCtOrigin :: HsExpr GhcRn -> CtOrigin
 exprCtOrigin (HsVar _ (L _ name)) = OccurrenceOf name
 exprCtOrigin (HsGetField _ _ (L _ f)) = HasFieldOrigin (field_label $ unLoc $ dfoLabel f)
 exprCtOrigin (HsUnboundVar {})    = Shouldn'tHappenOrigin "unbound variable"
-exprCtOrigin (HsOverLabel _ l)  = OverLabelOrigin l
+exprCtOrigin (HsOverLabel _ l)  = OverLabelOrigin (mkFastStringText l)
 exprCtOrigin (ExplicitList {})    = ListOrigin
 exprCtOrigin (HsIPVar _ ip)       = IPOccOrigin ip
 exprCtOrigin (HsOverLit _ lit)    = LiteralOrigin lit

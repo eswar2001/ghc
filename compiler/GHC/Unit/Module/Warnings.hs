@@ -66,6 +66,7 @@ import GHC.Unicode
 import Language.Haskell.Syntax.Extension
 
 import Data.Data
+import qualified Data.Text as T
 import Data.List (isPrefixOf)
 import GHC.Generics ( Generic )
 import Control.DeepSeq
@@ -270,10 +271,10 @@ pp_ws ws
 
 pprWarningTxtForMsg :: WarningTxt p -> SDoc
 pprWarningTxtForMsg (WarningTxt _ _ ws)
-                     = doubleQuotes (vcat (map (ftext . sl_fs . hsDocString . unLoc) ws))
+                     = doubleQuotes (vcat (map (text . T.unpack . sl_fs . hsDocString . unLoc) ws))
 pprWarningTxtForMsg (DeprecatedTxt _ ds)
                      = text "Deprecated:" <+>
-                       doubleQuotes (vcat (map (ftext . sl_fs . hsDocString . unLoc) ds))
+                       doubleQuotes (vcat (map (text . T.unpack . sl_fs . hsDocString . unLoc) ds))
 
 
 -- | Warning information from a module

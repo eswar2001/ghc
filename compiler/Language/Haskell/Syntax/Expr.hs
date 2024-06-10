@@ -21,6 +21,8 @@
 -- | Abstract Haskell syntax for expressions.
 module Language.Haskell.Syntax.Expr where
 
+import Data.Text (Text)
+
 import Language.Haskell.Syntax.Basic
 import Language.Haskell.Syntax.Decls
 import Language.Haskell.Syntax.Pat
@@ -32,8 +34,6 @@ import Language.Haskell.Syntax.Binds
 
 -- others:
 import GHC.Types.SourceText (StringLiteral)
-
-import GHC.Data.FastString (FastString)
 
 -- libraries:
 import Data.Data hiding (Fixity(..))
@@ -352,7 +352,7 @@ data HsExpr p
 
 
 
-  | HsOverLabel (XOverLabel p) FastString
+  | HsOverLabel (XOverLabel p) Text
      -- ^ Overloaded label (Note [Overloaded labels] in GHC.OverloadedLabels)
 
   | HsIPVar   (XIPVar p)
@@ -1516,7 +1516,7 @@ data HsUntypedSplice id
    | HsQuasiQuote            -- See Note [Quasi-quote overview]
         (XQuasiQuote id)
         (IdP id)             -- The quoter (the bit between `[` and `|`)
-        (XRec id FastString) -- The enclosed string
+        (XRec id Text) -- The enclosed string
 
    | XUntypedSplice !(XXUntypedSplice id) -- Extension point; see Note [Trees That Grow]
                                           -- in Language.Haskell.Syntax.Extension

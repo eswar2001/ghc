@@ -214,6 +214,7 @@ import GHC.Utils.Misc
 import GHC.Utils.Panic
 
 import qualified Data.ByteString.Char8 as BS
+import qualified Data.Text as T
 
 import Data.Foldable
 import Data.List        ( elemIndex, intersperse )
@@ -2042,7 +2043,7 @@ charTy = mkTyConTy charTyCon
 charTyCon :: TyCon
 charTyCon   = pcTyCon charTyConName
                    (Just (CType NoSourceText Nothing
-                                  (NoSourceText,fsLit "HsChar")))
+                                  (NoSourceText,T.pack "HsChar")))
                    [] [charDataCon]
 charDataCon :: DataCon
 charDataCon = pcDataCon charDataConName [] [charPrimTy] charTyCon
@@ -2063,7 +2064,7 @@ intTy = mkTyConTy intTyCon
 
 intTyCon :: TyCon
 intTyCon = pcTyCon intTyConName
-               (Just (CType NoSourceText Nothing (NoSourceText,fsLit "HsInt")))
+               (Just (CType NoSourceText Nothing (NoSourceText,T.pack "HsInt")))
                  [] [intDataCon]
 intDataCon :: DataCon
 intDataCon = pcDataCon intDataConName [] [intPrimTy] intTyCon
@@ -2073,7 +2074,7 @@ wordTy = mkTyConTy wordTyCon
 
 wordTyCon :: TyCon
 wordTyCon = pcTyCon wordTyConName
-            (Just (CType NoSourceText Nothing (NoSourceText, fsLit "HsWord")))
+            (Just (CType NoSourceText Nothing (NoSourceText, T.pack "HsWord")))
                [] [wordDataCon]
 wordDataCon :: DataCon
 wordDataCon = pcDataCon wordDataConName [] [wordPrimTy] wordTyCon
@@ -2084,7 +2085,7 @@ word8Ty = mkTyConTy word8TyCon
 word8TyCon :: TyCon
 word8TyCon = pcTyCon word8TyConName
                      (Just (CType NoSourceText Nothing
-                            (NoSourceText, fsLit "HsWord8"))) []
+                            (NoSourceText, T.pack "HsWord8"))) []
                      [word8DataCon]
 word8DataCon :: DataCon
 word8DataCon = pcDataCon word8DataConName [] [word8PrimTy] word8TyCon
@@ -2095,7 +2096,7 @@ floatTy = mkTyConTy floatTyCon
 floatTyCon :: TyCon
 floatTyCon   = pcTyCon floatTyConName
                       (Just (CType NoSourceText Nothing
-                             (NoSourceText, fsLit "HsFloat"))) []
+                             (NoSourceText, T.pack "HsFloat"))) []
                       [floatDataCon]
 floatDataCon :: DataCon
 floatDataCon = pcDataCon         floatDataConName [] [floatPrimTy] floatTyCon
@@ -2106,7 +2107,7 @@ doubleTy = mkTyConTy doubleTyCon
 doubleTyCon :: TyCon
 doubleTyCon = pcTyCon doubleTyConName
                       (Just (CType NoSourceText Nothing
-                             (NoSourceText,fsLit "HsDouble"))) []
+                             (NoSourceText,T.pack "HsDouble"))) []
                       [doubleDataCon]
 
 doubleDataCon :: DataCon
@@ -2302,7 +2303,7 @@ boolTy = mkTyConTy boolTyCon
 boolTyCon :: TyCon
 boolTyCon = pcTyCon boolTyConName
                     (Just (CType NoSourceText Nothing
-                           (NoSourceText, fsLit "HsBool")))
+                           (NoSourceText, T.pack "HsBool")))
                     [] [falseDataCon, trueDataCon]
 
 falseDataCon, trueDataCon :: DataCon
