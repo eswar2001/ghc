@@ -276,7 +276,7 @@ instance Diagnostic DsMessage where
     DsAnotherRuleMightFireFirst _ bad_rule _    -> [SuggestAddPhaseToCompetingRule bad_rule]
     DsIncompleteRecordSelector{}                -> noHints
 
-  diagnosticCode = constructorCode
+  diagnosticCode = constructorCode @GHC
 
 {-
 Note [Suggest NegativeLiterals]
