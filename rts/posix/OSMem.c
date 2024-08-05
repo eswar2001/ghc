@@ -60,7 +60,6 @@
 # endif
 #endif
 
-
 #if !defined(darwin_HOST_OS)
 # undef RESERVE_FLAGS
 # if defined(MAP_GUARD)
@@ -74,8 +73,10 @@
 # endif
 #endif
 
+#if defined(HUGEPAGE_FLAGS)
 static int huge_tried = 0;
 static int huge_failed = 0;
+#endif
 
 static void *next_request = 0;
 
@@ -693,7 +694,9 @@ void osDecommitMemory(void *at, W_ size)
         sysErrorBelch("unable to make released memory unaccessible");
 #endif
     if(RtsFlags.GcFlags.hugepages) {
+      // Check that the memory is aligned to a hugepage,
       ASSERT( ((HUGEPAGE_SIZE - 1) & (uintptr_t)at) == 0);
+      // and that it is a multiple of the hugepage size.
       ASSERT( ((HUGEPAGE_SIZE - 1) & size) == 0);
     }
 

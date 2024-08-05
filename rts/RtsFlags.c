@@ -556,8 +556,10 @@ usage_text[] = {
 #endif
 "  -xq        The allocation limit given to a thread after it receives",
 "             an AllocationLimitExceeded exception. (default: 100k)",
+#if defined(HUGEPAGE_FLAGS)
 "  -xH        Try to use hugepages to allocate memory.",
 "",
+#endif
 #if defined(USE_LARGE_ADDRESS_SPACE)
 "  -xr        The size of virtual memory address space reserved by the",
 "             two step allocator (default: 1T)",
@@ -1861,7 +1863,11 @@ error = true;
 
                 case 'H':
                     OPTION_UNSAFE;
+#if defined(HUGEPAGE_FLAGS)
                     RtsFlags.GcFlags.hugepages = true;
+#else
+                    errorBelch("Program not compiled with hugepages support.");
+#endif
                     break;
 
                 default:
