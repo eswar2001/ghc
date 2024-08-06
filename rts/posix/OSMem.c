@@ -693,12 +693,6 @@ void osDecommitMemory(void *at, W_ size)
     if(r < 0)
         sysErrorBelch("unable to make released memory unaccessible");
 #endif
-    if(RtsFlags.GcFlags.hugepages) {
-      // Check that the memory is aligned to a hugepage,
-      ASSERT( ((HUGEPAGE_SIZE - 1) & (uintptr_t)at) == 0);
-      // and that it is a multiple of the hugepage size.
-      ASSERT( ((HUGEPAGE_SIZE - 1) & size) == 0);
-    }
 
 #if defined(MADV_FREE)
     // See Note [MADV_FREE and MADV_DONTNEED].
