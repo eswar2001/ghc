@@ -1,9 +1,13 @@
 Found Language.Haskell.Syntax module dependencies
 GHC.Builtin.Names
+GHC.Builtin.Names.TH
 GHC.Builtin.PrimOps
+GHC.Builtin.PrimOps.Ids
 GHC.Builtin.Types
+GHC.Builtin.Types.Literals
 GHC.Builtin.Types.Prim
 GHC.Builtin.Uniques
+GHC.Builtin.Utils
 GHC.ByteCode.Types
 GHC.Cmm.BlockId
 GHC.Cmm.CLabel
@@ -24,10 +28,12 @@ GHC.Core.FVs
 GHC.Core.FamInstEnv
 GHC.Core.InstEnv
 GHC.Core.Make
+GHC.Core.Map.Expr
 GHC.Core.Map.Type
 GHC.Core.Multiplicity
 GHC.Core.Opt.Arity
 GHC.Core.Opt.CallerCC.Types
+GHC.Core.Opt.ConstantFold
 GHC.Core.Opt.OccurAnal
 GHC.Core.PatSyn
 GHC.Core.Ppr
@@ -163,6 +169,7 @@ GHC.Types.Id.Info
 GHC.Types.Id.Make
 GHC.Types.Literal
 GHC.Types.Name
+GHC.Types.Name.Cache
 GHC.Types.Name.Env
 GHC.Types.Name.Occurrence
 GHC.Types.Name.Reader

@@ -133,6 +133,7 @@ import GHC.Unit.Module
 import GHC.Utils.Misc as Utils
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
+import {-# SOURCE #-} GHC.Types.Name.Cache (isKnownOrigName_maybe)
 
 import Control.DeepSeq
 import Control.Monad ( guard )
@@ -142,6 +143,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import qualified Data.Semigroup as S
 import System.IO.Unsafe ( unsafePerformIO )
+
 
 {-
 ************************************************************************
@@ -343,7 +345,30 @@ instance Outputable RdrName where
     ppr (Exact name)   = ppr name
     ppr (Unqual occ)   = ppr occ
     ppr (Qual mod occ) = ppr mod <> dot <> ppr occ
-    ppr (Orig mod occ) = getPprStyle (\sty -> pprModulePrefix sty mod occ <> ppr occ)
+    ppr (Orig mod occ) =
+      -- See Note [Pretty-printing known original names]
+      getPprDebug $ \debug ->
+      getPprStyle $ \sty ->
+      case isKnownOrigName_maybe mod occ of
+        Just name | not debug -> ppr name
+        _ -> pprModulePrefix sty mod occ <> ppr occ
+
+{- Note [Pretty-printing known original names]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+An original name is a pair (Module, OccName), and normally we would pretty-print
+it using the M.x syntax, e.g. "GHC.Types.Int" or "GHC.Internal.Base.ord".
+However, this approach creates two problems (test case: th/T13776):
+
+  1) Illegal quantification of built-in syntax, e.g. the nil data constructor []
+     would be printed as GHC.Types.[], which is not valid Haskell syntax
+
+  2) Ignoring ListTuplePuns. e.g. the type constructor (,) would be
+     printed as GHC.Tuple.Tuple2, even though the user would prefer to see (,)
+
+The pretty-printer has special cases to deal with this, but we need a Name (with
+a Unique) to trigger those cases. All names with special pretty-printing logic
+are wired-in, so we call `isKnownOrigName_maybe` to get our hands on a Name and
+then use it for printing if possible. -}
 
 instance OutputableBndr RdrName where
     pprBndr _ n
