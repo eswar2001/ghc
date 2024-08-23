@@ -3329,7 +3329,6 @@ module GHC.Base where
   data MVar# a b
   type Maybe :: * -> *
   data Maybe a = Nothing | Just a
-  MkSolo# :: forall (k :: RuntimeRep) (a :: TYPE k). a -> (# a #)
   type Module :: *
   data Module = Module TrName TrName
   type Monad :: (* -> *) -> Constraint
@@ -5526,7 +5525,6 @@ module GHC.Exts where
   type role MVar# nominal representational
   type MVar# :: forall {l :: Levity}. * -> TYPE (BoxedRep l) -> UnliftedType
   data MVar# a b
-  MkSolo# :: forall (k :: RuntimeRep) (a :: TYPE k). a -> (# a #)
   type MultMul :: Multiplicity -> Multiplicity -> Multiplicity
   type family MultMul a b where
     forall (x :: Multiplicity). MultMul One x = x
