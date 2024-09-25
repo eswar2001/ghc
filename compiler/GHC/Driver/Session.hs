@@ -3423,7 +3423,8 @@ compilerInfo dflags
        ("LibDir",                      topDir dflags),
        -- This is always an absolute path, unlike "Relative Global Package DB" which is
        -- in the settings file.
-       ("Global Package DB",           globalPackageDatabasePath dflags)
+       ("Global Package DB",           globalPackageDatabasePath dflags),
+       ("Wired-in units",  unwords . map unitIdString $ wiredInUnitIds)
       ]
   where
     showBool True  = "YES"
