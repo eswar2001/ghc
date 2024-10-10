@@ -75,13 +75,13 @@ getImports :: ParserOpts   -- ^ Parser options
                            --   in the function result)
            -> IO (Either
                (Messages PsMessage)
-               ([(RawPkgQual, Located ModuleName)],
+               ([Located ModuleName],
                 [(ImportStage, RawPkgQual, Located ModuleName)],
                 Bool, -- Is GHC.Prim imported or not
                 Located ModuleName))
               -- ^ The source imports and normal imports (with optional package
               -- names from -XPackageImports), and the module name.
-getImports popts implicit_prelude buf filename source_filename = do
+getImports popts implicit_prelude staged_imports buf filename source_filename = do
   let loc  = mkRealSrcLoc (mkFastString filename) 1 1
   case unP parseHeader (initParserState popts buf loc) of
     PFailed pst ->
@@ -111,8 +111,9 @@ getImports popts implicit_prelude buf filename source_filename = do
                 implicit_imports = mkPrelImports (unLoc mod) main_loc
                                                  implicit_prelude imps
                 convImport (L _ i) = (ideclStage i, ideclPkgQual i, reLoc $ ideclName i)
+                convImport_src (L _ i) = (reLoc $ ideclName i)
               in
-              return (map convImport src_idecls
+              return (map convImport_src src_idecls
                      , map convImport (implicit_imports ++ ordinary_imps)
                      , not (null ghc_prim_import)
                      , reLoc mod)
@@ -158,6 +159,7 @@ mkPrelImports this_mod loc implicit_prelude import_decls
                                 ideclSafe      = False,  -- Not a safe import
                                 ideclQualified = NotQualified,
                                 ideclAs        = Nothing,
+                                ideclStage     = NormalStage,
                                 ideclImportList = Nothing  }
 
 --------------------------------------------------------------

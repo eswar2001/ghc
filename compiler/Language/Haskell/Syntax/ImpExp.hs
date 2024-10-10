@@ -13,8 +13,13 @@ import Data.Bool (Bool)
 import Data.Maybe (Maybe)
 import Data.String (String)
 import Data.Int (Int)
+import Prelude ( (.), show )
 
 import Control.DeepSeq
+import GHC.Stack
+import GHC.Utils.Panic
+import GHC.Utils.Trace
+import GHC.Utils.Outputable
 
 import {-# SOURCE #-} GHC.Hs.Doc (LHsDoc) -- ROMES:TODO Discuss in #21592 whether this is parsed AST or base AST
 
@@ -48,11 +53,14 @@ data IsBootInterface = NotBoot | IsBoot
 instance NFData IsBootInterface where
   rnf = rwhnf
 
-data ImportStage = Normal | Splice | Quote deriving (Eq, Data, Show)
+data ImportStage = NormalStage | SpliceStage | QuoteStage deriving (Eq, Data, Show)
 
 -- A placeholder which is used when the stage is not yet analysed.
 unanalysedStage :: HasCallStack => ImportStage
-unanalysedStage = pprTrace "unanalysedStage" callStackDoc Normal
+unanalysedStage = pprTrace "unanalysedStage" callStackDoc NormalStage
+
+instance Outputable ImportStage where
+  ppr = text . show
 
 -- | Import Declaration
 --

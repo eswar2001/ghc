@@ -1137,7 +1137,7 @@ importdecl :: { LImportDecl GhcPs }
                          = EpAnnImportDecl
                              { importDeclAnnImport    = glR $1
                              , importDeclAnnPragma    = fst $ fst $2
-                             , importDeclAnnSplice    = fst $3
+                             , importDeclAnnStage    = fst $3
                              , importDeclAnnSafe      = fst $4
                              , importDeclAnnQualified = fst $ importDeclQualifiedStyle mPreQual mPostQual
                              , importDeclAnnPackage   = fst $6
@@ -1148,7 +1148,7 @@ importdecl :: { LImportDecl GhcPs }
                       ImportDecl { ideclExt = XImportDeclPass (EpAnn (spanAsAnchor loc) anns cs) (snd $ fst $2) False
                                   , ideclName = $7, ideclPkgQual = snd $6
                                   , ideclSource = snd $2
-                                  , ideclSplice = snd $3
+                                  , ideclStage  = snd $3
                                   , ideclSafe = snd $4
                                   , ideclQualified = snd $ importDeclQualifiedStyle mPreQual mPostQual
                                   , ideclAs = unLoc (snd $9)
@@ -1166,10 +1166,10 @@ maybe_safe :: { (Maybe EpaLocation,Bool) }
         : 'safe'                                { (Just (glR $1),True) }
         | {- empty -}                           { (Nothing,      False) }
 
-maybe_splice :: { (Maybe EpaLocation,Bool) }
-        : 'splice'                              { (Just (glAA $1),_) }
-        | 'quote'                               { (Just (glAA $1),_) }
-        | {- empty -}                           { (Nothing,      _) }
+maybe_splice :: { (Maybe EpaLocation,ImportStage) }
+        : 'splice'                              { (Just (glR $1), SpliceStage) }
+        | 'quote'                               { (Just (glR $1), QuoteStage) }
+        | {- empty -}                           { (Nothing,      NormalStage) }
 
 maybe_pkg :: { (Maybe EpaLocation, RawPkgQual) }
         : STRING  {% do { let { pkgFS = getSTRING $1 }

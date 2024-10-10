@@ -960,6 +960,7 @@ data Token
     -- [Qual.quoter| quote |]
 
   | ITsplice
+  | ITquote
 
   -- Arrow notation extension
   | ITproc
@@ -1101,7 +1102,7 @@ reservedWordsFM = listToUFM $
          ( "rec",            ITrec,           xbit ArrowsBit .|.
                                               xbit RecursiveDoBit),
          ( "proc",           ITproc,          xbit ArrowsBit),
-         ( "splice",         ITsplice,        xbit StagedImportsBit)
+         ( "splice",         ITsplice,        xbit StagedImportsBit),
          ( "quote",          ITquote,         xbit StagedImportsBit)
      ]
 

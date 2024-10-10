@@ -795,7 +795,7 @@ summariseRequirement pn mod_name = do
         ms_iface_date = hi_timestamp,
         ms_hie_date = hie_timestamp,
         ms_srcimps = [],
-        ms_textual_imps = ((,) NoPkgQual . noLoc) <$> extra_sig_imports,
+        ms_textual_imps = ((,,) NormalStage NoPkgQual . noLoc) <$> extra_sig_imports,
         ms_ghc_prim_import = False,
         ms_parsed_mod = Just (HsParsedModule {
                 hpm_module = L loc (HsModule {
@@ -882,7 +882,7 @@ hsModuleToModSummary home_keys pn hsc_src modname
                                          implicit_prelude imps
 
         rn_pkg_qual = renameRawPkgQual (hsc_unit_env hsc_env) modname
-        convImport (L _ i) = (rn_pkg_qual (ideclPkgQual i), reLoc $ ideclName i)
+        convImport (L _ i) = (ideclStage i, rn_pkg_qual (ideclPkgQual i), reLoc $ ideclName i)
 
     extra_sig_imports <- liftIO $ findExtraSigImports hsc_env hsc_src modname
 
@@ -903,14 +903,14 @@ hsModuleToModSummary home_keys pn hsc_src modname
                             Just d -> d) </> ".." </> moduleNameSlashes modname <.> "hi",
             ms_hspp_opts = dflags,
             ms_hspp_buf = Nothing,
-            ms_srcimps = map convImport src_idecls,
+            ms_srcimps = (\i -> reLoc (ideclName (unLoc i))) <$> src_idecls,
             ms_ghc_prim_import = not (null ghc_prim_import),
             ms_textual_imps = normal_imports
                            -- We have to do something special here:
                            -- due to merging, requirements may end up with
                            -- extra imports
-                           ++ ((,) NoPkgQual . noLoc <$> extra_sig_imports)
-                           ++ ((,) NoPkgQual . noLoc <$> implicit_sigs),
+                           ++ ((,,) NormalStage NoPkgQual . noLoc <$> extra_sig_imports)
+                           ++ ((,,) NormalStage NoPkgQual . noLoc <$> implicit_sigs),
             -- This is our hack to get the parse tree to the right spot
             ms_parsed_mod = Just (HsParsedModule {
                     hpm_module = hsmod,
@@ -932,7 +932,7 @@ hsModuleToModSummary home_keys pn hsc_src modname
           -- hs-boot edge
           [k | k <- [NodeKey_Module (ModNodeKeyWithUid (GWIB (ms_mod_name ms) IsBoot)  (moduleUnitId this_mod))], NotBoot == isBootSummary ms,  k `elem` home_keys ] ++
           -- Normal edges
-          [k | (_, mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) (moduleUnitId this_mod)), k `elem` home_keys]
+          [k | (_, _,  mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) (moduleUnitId this_mod)), k `elem` home_keys]
 
 
     return (ModuleNode (mod_nodes ++ inst_nodes) ms)

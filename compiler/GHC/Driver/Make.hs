@@ -149,6 +149,7 @@ import GHC.Types.Unique
 import GHC.Iface.Errors.Types
 
 import qualified GHC.Data.Word64Set as W
+import Language.Haskell.Syntax.ImpExp
 
 -- -----------------------------------------------------------------------------
 -- Loading the program
@@ -525,7 +526,7 @@ warnUnusedPackages us dflags mod_graph =
 
     -- Only need non-source imports here because SOURCE imports are always HPT
         loadedPackages = concat $
-          mapMaybe (\(fs, mn) -> lookupModulePackage us (unLoc mn) fs)
+          mapMaybe (\(_st, fs, mn) -> lookupModulePackage us (unLoc mn) fs)
             $ concatMap ms_imps home_mod_sum
 
         any_import_ghc_prim = any ms_ghc_prim_import home_mod_sum
@@ -1632,7 +1633,7 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
           -- This gets passed to the loopImports function which just ignores it if it
           -- can't be found.
           [(ms_unitid ms, NoPkgQual, GWIB (noLoc $ ms_mod_name ms) IsBoot) | NotBoot <- [isBootSummary ms] ] ++
-          [(ms_unitid ms, b, c) | (b, c) <- msDeps ms ]
+          [(ms_unitid ms, b, c) | (_st, b, c) <- msDeps ms ]
 
         logger = hsc_logger hsc_env
 
@@ -2365,8 +2366,8 @@ makeNewModSummary hsc_env MakeNewModSummary{..} = do
         , ms_srcimps = pi_srcimps
         , ms_ghc_prim_import = pi_ghc_prim_import
         , ms_textual_imps =
-            ((,) NoPkgQual . noLoc <$> extra_sig_imports) ++
-            ((,) NoPkgQual . noLoc <$> implicit_sigs) ++
+            ((,,) NormalStage NoPkgQual . noLoc <$> extra_sig_imports) ++
+            ((,,) NormalStage NoPkgQual . noLoc <$> implicit_sigs) ++
             pi_theimps
         , ms_hs_hash = nms_src_hash
         , ms_iface_date = hi_timestamp
@@ -2378,7 +2379,7 @@ makeNewModSummary hsc_env MakeNewModSummary{..} = do
 data PreprocessedImports
   = PreprocessedImports
       { pi_local_dflags :: DynFlags
-      , pi_srcimps  :: [(PkgQual, Located ModuleName)]
+      , pi_srcimps  :: [(Located ModuleName)]
       , pi_theimps  :: [(ImportStage, PkgQual, Located ModuleName)]
       , pi_ghc_prim_import :: Bool
       , pi_hspp_fn  :: FilePath
@@ -2404,12 +2405,12 @@ getPreprocessedImports hsc_env src_fn mb_phase maybe_buf = do
       <- ExceptT $ do
           let imp_prelude = xopt LangExt.ImplicitPrelude pi_local_dflags
               popts = initParserOpts pi_local_dflags
-              splice_imports = xopt LangExt.SpliceImports pi_local_dflags
+              splice_imports = xopt LangExt.StagedImports pi_local_dflags
           mimps <- getImports popts imp_prelude splice_imports pi_hspp_buf pi_hspp_fn src_fn
           return (first (mkMessages . fmap mkDriverPsHeaderMessage . getMessages) mimps)
   let rn_pkg_qual = renameRawPkgQual (hsc_unit_env hsc_env)
-  let rn_imps = fmap (\(pk, lmn@(L _ mn)) -> (rn_pkg_qual mn pk, lmn))
-  let pi_srcimps = rn_imps pi_srcimps'
+  let rn_imps = fmap (\(sp, pk, lmn@(L _ mn)) -> (sp, rn_pkg_qual mn pk, lmn))
+  let pi_srcimps = pi_srcimps'
   let pi_theimps = rn_imps pi_theimps'
   return PreprocessedImports {..}
 
