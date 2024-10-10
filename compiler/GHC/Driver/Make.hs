@@ -2379,7 +2379,7 @@ data PreprocessedImports
   = PreprocessedImports
       { pi_local_dflags :: DynFlags
       , pi_srcimps  :: [(PkgQual, Located ModuleName)]
-      , pi_theimps  :: [(PkgQual, Located ModuleName)]
+      , pi_theimps  :: [(ImportStage, PkgQual, Located ModuleName)]
       , pi_ghc_prim_import :: Bool
       , pi_hspp_fn  :: FilePath
       , pi_hspp_buf :: StringBuffer
@@ -2404,7 +2404,8 @@ getPreprocessedImports hsc_env src_fn mb_phase maybe_buf = do
       <- ExceptT $ do
           let imp_prelude = xopt LangExt.ImplicitPrelude pi_local_dflags
               popts = initParserOpts pi_local_dflags
-          mimps <- getImports popts imp_prelude pi_hspp_buf pi_hspp_fn src_fn
+              splice_imports = xopt LangExt.SpliceImports pi_local_dflags
+          mimps <- getImports popts imp_prelude splice_imports pi_hspp_buf pi_hspp_fn src_fn
           return (first (mkMessages . fmap mkDriverPsHeaderMessage . getMessages) mimps)
   let rn_pkg_qual = renameRawPkgQual (hsc_unit_env hsc_env)
   let rn_imps = fmap (\(pk, lmn@(L _ mn)) -> (rn_pkg_qual mn pk, lmn))

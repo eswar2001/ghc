@@ -48,6 +48,12 @@ data IsBootInterface = NotBoot | IsBoot
 instance NFData IsBootInterface where
   rnf = rwhnf
 
+data ImportStage = Normal | Splice | Quote deriving (Eq, Data, Show)
+
+-- A placeholder which is used when the stage is not yet analysed.
+unanalysedStage :: HasCallStack => ImportStage
+unanalysedStage = pprTrace "unanalysedStage" callStackDoc Normal
+
 -- | Import Declaration
 --
 -- A single Haskell @import@ declaration.
@@ -57,6 +63,7 @@ data ImportDecl pass
       ideclName       :: XRec pass ModuleName, -- ^ Module name.
       ideclPkgQual    :: ImportDeclPkgQual pass,  -- ^ Package qualifier.
       ideclSource     :: IsBootInterface,      -- ^ IsBoot \<=> {-\# SOURCE \#-} import
+      ideclStage      :: ImportStage,
       ideclSafe       :: Bool,          -- ^ True => safe import
       ideclQualified  :: ImportDeclQualifiedStyle, -- ^ If/how the import is qualified.
       ideclAs         :: Maybe (XRec pass ModuleName),  -- ^ as Module

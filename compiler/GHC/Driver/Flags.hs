@@ -195,6 +195,7 @@ extensionName = \case
   LangExt.MagicHash -> "MagicHash"
   LangExt.EmptyDataDecls -> "EmptyDataDecls"
   LangExt.KindSignatures -> "KindSignatures"
+  LangExt.StagedImports  -> "StagedImports"
   LangExt.RoleAnnotations -> "RoleAnnotations"
   LangExt.ParallelListComp -> "ParallelListComp"
   LangExt.TransformListComp -> "TransformListComp"

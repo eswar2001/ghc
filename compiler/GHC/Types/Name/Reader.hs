@@ -104,7 +104,10 @@ module GHC.Types.Name.Reader (
         importSpecLoc, importSpecModule, isExplicitItem, bestImport,
 
         -- * Utils
-        opIsAt
+        opIsAt,
+
+        ImportStage(..), unanalysedStage
+
   ) where
 
 import GHC.Prelude
@@ -142,6 +145,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import qualified Data.Semigroup as S
 import System.IO.Unsafe ( unsafePerformIO )
+import {-# SOURCE #-} Language.Haskell.Syntax.ImpExp
 
 {-
 ************************************************************************
@@ -1786,6 +1790,7 @@ shadowNames drop_only_qualified env new_gres = minusOccEnv_C_Ns do_shadowing env
                                    , is_as = old_mod_name
                                    , is_pkg_qual = NoPkgQual
                                    , is_qual = True
+                                   , is_staged = unanalysedStage
                                    , is_isboot = NotBoot
                                    , is_dloc = greDefinitionSrcSpan old_gre }
 
@@ -1948,8 +1953,11 @@ data ImpDeclSpec
         is_pkg_qual :: !PkgQual,    -- ^ Was this a package import?
         is_qual     :: !Bool,       -- ^ Was this import qualified?
         is_dloc     :: !SrcSpan,    -- ^ The location of the entire import declaration
-        is_isboot   :: !IsBootInterface -- ^ Was this a SOURCE import?
+        is_isboot   :: !IsBootInterface, -- ^ Was this a SOURCE import?
+        is_staged   :: !ImportStage -- ^ Was this import stage modified? splice/quote +-1
     } deriving (Eq, Data)
+
+
 
 instance NFData ImpDeclSpec where
   rnf = rwhnf -- Already strict in all fields

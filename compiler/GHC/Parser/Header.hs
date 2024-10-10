@@ -67,6 +67,7 @@ import Text.Read (readPrec)
 -- Throws a 'SourceError' if parsing fails.
 getImports :: ParserOpts   -- ^ Parser options
            -> Bool         -- ^ Implicit Prelude?
+           -> Bool         -- ^ Explicit staged imports?
            -> StringBuffer -- ^ Parse this.
            -> FilePath     -- ^ Filename the buffer came from.  Used for
                            --   reporting parse error locations.
@@ -75,7 +76,7 @@ getImports :: ParserOpts   -- ^ Parser options
            -> IO (Either
                (Messages PsMessage)
                ([(RawPkgQual, Located ModuleName)],
-                [(RawPkgQual, Located ModuleName)],
+                [(ImportStage, RawPkgQual, Located ModuleName)],
                 Bool, -- Is GHC.Prim imported or not
                 Located ModuleName))
               -- ^ The source imports and normal imports (with optional package
@@ -109,7 +110,7 @@ getImports popts implicit_prelude buf filename source_filename = do
 
                 implicit_imports = mkPrelImports (unLoc mod) main_loc
                                                  implicit_prelude imps
-                convImport (L _ i) = (ideclPkgQual i, reLoc $ ideclName i)
+                convImport (L _ i) = (ideclStage i, ideclPkgQual i, reLoc $ ideclName i)
               in
               return (map convImport src_idecls
                      , map convImport (implicit_imports ++ ordinary_imps)
