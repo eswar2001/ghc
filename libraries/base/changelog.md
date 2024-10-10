@@ -6,6 +6,7 @@
     ([GHC #25066](https://gitlab.haskell.org/ghc/ghc/-/issues/25066), [CLC proposal #290](https://github.com/haskell/core-libraries-committee/issues/290))
   * `Data.List.NonEmpty.{init,last,tails1}` are now defined using only total functions (rather than partial ones). ([CLC proposal #293](https://github.com/haskell/core-libraries-committee/issues/293))
   * `GHC.Conc.throwSTM` and `GHC.Conc.Sync.throwSTM` now carry a `HasCallStack` constraint and attach a `Backtrace` annotation to the thrown exception. ([GHC #25365](https://gitlab.haskell.org/ghc/ghc/-/issues/25365))
+  * `GHC.Conc.catchSTM` and `GHC.Conc.Sync.catchSTM` now attach `WhileHandling` annotation to exceptions thrown from the handler. ([GHC #25365](https://gitlab.haskell.org/ghc/ghc/-/issues/25365))
 
 ## 4.21.0.0 *TBA*
   * `GHC.Desugar` has been deprecated and should be removed in GHC 9.14. ([CLC proposal #216](https://github.com/haskell/core-libraries-committee/issues/216))
