@@ -70,6 +70,7 @@ import GHCi.RemoteTypes ( ForeignRef )
 import qualified GHC.Internal.TH.Syntax as TH (Q)
 
 import qualified GHC.LanguageExtensions as LangExt
+import qualified Data.Set as Set
 
 {-
 ************************************************************************
@@ -961,7 +962,8 @@ checkThLocalTyName name
         ; traceRn "checkThLocalTyName" (ppr name <+> ppr bind_lvl
                                                  <+> ppr use_stage
                                                  <+> ppr use_lvl)
-        ; checkCrossStageLiftingTy top_lvl bind_lvl use_stage use_lvl name } } }
+        ; dflags <- getDynFlags
+        ; checkCrossStageLiftingTy dflags top_lvl bind_lvl use_stage use_lvl name } } }
 
 checkThLocalName :: Name -> RnM ()
 checkThLocalName name
@@ -975,14 +977,14 @@ checkThLocalName name
              Nothing -> return () ;  -- Not a locally-bound thing
              Just (top_lvl, bind_lvl, use_stage) ->
     do  { let use_lvl = thLevel use_stage
-        ; checkWellStaged (StageCheckSplice name) bind_lvl use_lvl
+       -- ; checkWellStaged (StageCheckSplice name) bind_lvl use_lvl
         ; traceRn "checkThLocalName" (ppr name <+> ppr bind_lvl
                                                <+> ppr use_stage
                                                <+> ppr use_lvl)
-        ; checkCrossStageLifting top_lvl bind_lvl use_stage use_lvl name } } }
+        ; checkCrossStageLifting (StageCheckSplice name) top_lvl bind_lvl use_stage use_lvl name } } }
 
 --------------------------------------
-checkCrossStageLifting :: TopLevelFlag -> ThLevel -> ThStage -> ThLevel
+checkCrossStageLifting :: StageCheckReason -> TopLevelFlag -> Set.Set ThLevel -> ThStage -> ThLevel
                        -> Name -> TcM ()
 -- We are inside brackets, and (use_lvl > bind_lvl)
 -- Now we must check whether there's a cross-stage lift to do
@@ -992,16 +994,19 @@ checkCrossStageLifting :: TopLevelFlag -> ThLevel -> ThStage -> ThLevel
 -- This code is similar to checkCrossStageLifting in GHC.Tc.Gen.Expr, but
 -- this is only run on *untyped* brackets.
 
-checkCrossStageLifting top_lvl bind_lvl use_stage use_lvl name
+checkCrossStageLifting reason top_lvl bind_lvl use_stage use_lvl name
+  | use_lvl `Set.member` bind_lvl = return ()
   | Brack _ (RnPendingUntyped ps_var) <- use_stage   -- Only for untyped brackets
-  , use_lvl > bind_lvl                               -- Cross-stage condition
-  = check_cross_stage_lifting top_lvl name ps_var
-  | otherwise
-  = return ()
+  = do
+      dflags <- getDynFlags
+      let err = TcRnBadlyStaged reason bind_lvl use_lvl
+      check_cross_stage_lifting err dflags top_lvl name ps_var
+  | otherwise = addErrTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
-check_cross_stage_lifting :: TopLevelFlag -> Name -> TcRef [PendingRnSplice] -> TcM ()
-check_cross_stage_lifting top_lvl name ps_var
+check_cross_stage_lifting :: TcRnMessage -> DynFlags -> TopLevelFlag -> Name -> TcRef [PendingRnSplice] -> TcM ()
+check_cross_stage_lifting reason dflags top_lvl name ps_var
   | isTopLevel top_lvl
+  , xopt LangExt.PathCrossStagedPersistence dflags
         -- Top-level identifiers in this module,
         -- (which have External Names)
         -- are just like the imported case:
@@ -1012,7 +1017,7 @@ check_cross_stage_lifting top_lvl name ps_var
   = when (isExternalName name) (keepAlive name)
     -- See Note [Keeping things alive for Template Haskell]
 
-  | otherwise
+  | xopt LangExt.LiftCrossStagedPersistence dflags
   =     -- Nested identifiers, such as 'x' in
         -- E.g. \x -> [| h x |]
         -- We must behave as if the reference to x was
@@ -1034,20 +1039,21 @@ check_cross_stage_lifting top_lvl name ps_var
           -- Update the pending splices
         ; ps <- readMutVar ps_var
         ; writeMutVar ps_var (pend_splice : ps) }
+  | otherwise = addErrTc reason
 
-checkCrossStageLiftingTy :: TopLevelFlag -> ThLevel -> ThStage -> ThLevel -> Name -> TcM ()
-checkCrossStageLiftingTy top_lvl bind_lvl _use_stage use_lvl name
+checkCrossStageLiftingTy :: DynFlags -> TopLevelFlag -> Set.Set ThLevel -> ThStage -> ThLevel -> Name -> TcM ()
+checkCrossStageLiftingTy dflags top_lvl bind_lvl _use_stage use_lvl name
   | isTopLevel top_lvl
+  , xopt LangExt.PathCrossStagedPersistence dflags
   = return ()
 
   -- There is no liftType (yet), so we could error, or more conservatively, just warn.
   --
   -- For now, we check here for both untyped and typed splices, as we don't create splices.
-  | use_lvl > bind_lvl
-  = addDiagnostic $ TcRnBadlyStagedType name bind_lvl use_lvl
 
-  -- See comment in checkThLocalTyName: this can also happen.
-  | bind_lvl < use_lvl
+  -- Can also happen for negative cases
+  -- See comment in checkThLocalTyName:
+  | use_lvl `notElem` bind_lvl
   = addDiagnostic $ TcRnBadlyStagedType name bind_lvl use_lvl
 
   | otherwise

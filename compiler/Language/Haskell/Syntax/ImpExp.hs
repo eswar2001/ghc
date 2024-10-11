@@ -53,7 +53,7 @@ data IsBootInterface = NotBoot | IsBoot
 instance NFData IsBootInterface where
   rnf = rwhnf
 
-data ImportStage = NormalStage | SpliceStage | QuoteStage deriving (Eq, Data, Show)
+data ImportStage = NormalStage | SpliceStage | QuoteStage deriving (Eq, Ord, Data, Show)
 
 -- A placeholder which is used when the stage is not yet analysed.
 unanalysedStage :: HasCallStack => ImportStage

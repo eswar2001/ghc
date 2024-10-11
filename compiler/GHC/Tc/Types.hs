@@ -469,6 +469,7 @@ data TcGblEnv
           -- ^ What kind of module (regular Haskell, hs-boot, hsig)
 
         tcg_rdr_env :: GlobalRdrEnv,   -- ^ Top level envt; used during renaming
+        tcg_bind_env :: ThBindEnv,      -- ^ Binding level of imported identifiers
         tcg_default         :: DefaultEnv,     -- ^ All class defaults in scope in the module
         tcg_default_exports :: DefaultEnv,     -- ^ All class defaults exported from the module
 

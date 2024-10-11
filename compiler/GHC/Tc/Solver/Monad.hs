@@ -211,6 +211,8 @@ import GHC.Types.Unique.Set (nonDetEltsUniqSet)
 import GHC.Data.Graph.Directed
 #endif
 
+import qualified Data.Set as Set
+
 {- *********************************************************************
 *                                                                      *
                SolverStage and StopOrContinue
@@ -1416,7 +1418,7 @@ checkWellStagedDFun loc what pred
         Just bind_lvl | bind_lvl > impLevel ->
           wrapTcS $ TcM.setCtLocM loc $ do
               { use_stage <- TcM.getStage
-              ; TcM.checkWellStaged (StageCheckInstance what pred) bind_lvl (thLevel use_stage) }
+              ; TcM.checkWellStaged (StageCheckInstance what pred) (Set.singleton bind_lvl) (thLevel use_stage) }
         _ ->
           return ()
 

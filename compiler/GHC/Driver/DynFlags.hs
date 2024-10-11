@@ -1346,7 +1346,9 @@ languageExtensions (Just Haskell98)
            -- default unless you specify another language.
        LangExt.DeepSubsumption,
        -- Non-standard but enabled for backwards compatability (see GHC proposal #511)
-       LangExt.ListTuplePuns
+       LangExt.ListTuplePuns,
+       LangExt.LiftCrossStagedPersistence,
+       LangExt.PathCrossStagedPersistence
       ]
 
 languageExtensions (Just Haskell2010)
@@ -1364,7 +1366,10 @@ languageExtensions (Just Haskell2010)
        LangExt.FieldSelectors,
        LangExt.RelaxedPolyRec,
        LangExt.DeepSubsumption,
-       LangExt.ListTuplePuns ]
+       LangExt.ListTuplePuns,
+       LangExt.LiftCrossStagedPersistence,
+       LangExt.PathCrossStagedPersistence
+       ]
 
 languageExtensions (Just GHC2021)
     = [LangExt.ImplicitPrelude,
@@ -1415,7 +1420,10 @@ languageExtensions (Just GHC2021)
        LangExt.TupleSections,
        LangExt.TypeApplications,
        LangExt.TypeOperators,
-       LangExt.TypeSynonymInstances]
+       LangExt.TypeSynonymInstances,
+       LangExt.LiftCrossStagedPersistence,
+       LangExt.PathCrossStagedPersistence
+       ]
 
 languageExtensions (Just GHC2024)
     = languageExtensions (Just GHC2021) ++

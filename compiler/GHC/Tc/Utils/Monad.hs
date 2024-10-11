@@ -199,6 +199,7 @@ import GHC.Utils.Panic
 import GHC.Utils.Constants (debugIsOn)
 import GHC.Utils.Logger
 import qualified GHC.Data.Strict as Strict
+import qualified Data.Set as Set
 
 import GHC.Types.Error
 import GHC.Types.DefaultEnv ( DefaultEnv, emptyDefaultEnv )
@@ -2074,12 +2075,23 @@ keepAlive name
 getStage :: TcM ThStage
 getStage = do { env <- getLclEnv; return (getLclEnvThStage env) }
 
-getStageAndBindLevel :: Name -> TcRn (Maybe (TopLevelFlag, ThLevel, ThStage))
+getStageAndBindLevel :: Name -> TcRn (Maybe (TopLevelFlag, Set.Set ThLevel, ThStage))
 getStageAndBindLevel name
   = do { env <- getLclEnv;
        ; case lookupNameEnv (getLclEnvThBndrs env) name of
            Nothing                  -> return Nothing
-           Just (top_lvl, bind_lvl) -> return (Just (top_lvl, bind_lvl, getLclEnvThStage env)) }
+           Just (top_lvl, bind_lvl) -> return (Just (top_lvl, Set.singleton bind_lvl, getLclEnvThStage env)) }
+
+getExternalBindLvl :: Name -> TcRn (Set.Set ThLevel)
+getExternalBindLvl name = do
+  env <- getGlobalRdrEnv
+  case lookupGRE_Name env name of
+    Just gre -> return $ (Set.map convert_lvl (greStages gre))
+    Nothing -> return Set.empty
+  where
+    convert_lvl NormalStage = thLevel topStage
+    convert_lvl SpliceStage = thLevel topSpliceStage
+    convert_lvl QuoteStage  = thLevel (Brack topStage undefined)
 
 setStage :: ThStage -> TcM a -> TcRn a
 setStage s = updLclEnv (setLclEnvThStage s)

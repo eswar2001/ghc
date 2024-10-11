@@ -195,7 +195,6 @@ extensionName = \case
   LangExt.MagicHash -> "MagicHash"
   LangExt.EmptyDataDecls -> "EmptyDataDecls"
   LangExt.KindSignatures -> "KindSignatures"
-  LangExt.StagedImports  -> "StagedImports"
   LangExt.RoleAnnotations -> "RoleAnnotations"
   LangExt.ParallelListComp -> "ParallelListComp"
   LangExt.TransformListComp -> "TransformListComp"
@@ -248,6 +247,9 @@ extensionName = \case
   LangExt.ExtendedLiterals -> "ExtendedLiterals"
   LangExt.ListTuplePuns -> "ListTuplePuns"
   LangExt.MultilineStrings -> "MultilineStrings"
+  LangExt.StagedImports -> "ExplicitStageImports"
+  LangExt.PathCrossStagedPersistence -> "PathCSP"
+  LangExt.LiftCrossStagedPersistence -> "LiftCSP"
 
 -- | Is this extension known by any other names? For example
 -- -XGeneralizedNewtypeDeriving is accepted
@@ -342,6 +344,9 @@ impliedXFlags
 
     -- See Note [Non-variable pattern bindings aren't linear] in GHC.Tc.Gen.Bind
     , (LangExt.LinearTypes, turnOn, LangExt.MonoLocalBinds)
+
+    , (LangExt.StagedImports, turnOff, LangExt.LiftCrossStagedPersistence)
+    , (LangExt.StagedImports, turnOff, LangExt.PathCrossStagedPersistence)
   ]
 
 

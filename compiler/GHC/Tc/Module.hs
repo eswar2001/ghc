@@ -447,7 +447,7 @@ isTypeSubsequenceOf (t1:t1s) (t2:t2s)
 
 tcRnImports :: HscEnv -> [(LImportDecl GhcPs, SDoc)] -> TcM ([NonEmpty ClassDefaults], TcGblEnv)
 tcRnImports hsc_env import_decls
-  = do  { (rn_imports, imp_user_spec, rdr_env, imports, defaults, hpc_info) <- rnImports import_decls ;
+  = do  { (rn_imports, imp_user_spec, rdr_env, bind_env, imports, defaults, hpc_info) <- rnImports import_decls ;
 
         ; this_mod <- getModule
         ; gbl_env <- getGblEnv
@@ -479,6 +479,7 @@ tcRnImports hsc_env import_decls
         ; updGblEnv ( \ gbl ->
             gbl {
               tcg_rdr_env      = tcg_rdr_env gbl `plusGlobalRdrEnv` rdr_env,
+              tcg_bind_env     = tcg_bind_env gbl    `plusNameEnv` bind_env,
               tcg_imports      = tcg_imports gbl `plusImportAvails` imports,
               tcg_import_decls = imp_user_spec,
               tcg_rn_imports   = rn_imports,

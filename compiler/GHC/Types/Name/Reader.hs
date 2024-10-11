@@ -85,7 +85,7 @@ module GHC.Types.Name.Reader (
         pprNameProvenance,
         mkGRE, mkExactGRE, mkLocalGRE, mkLocalVanillaGRE, mkLocalTyConGRE,
         mkLocalConLikeGRE, mkLocalFieldGREs,
-        gresToNameSet,
+        gresToNameSet, greStages,
 
         -- ** Shadowing
         greClashesWith, shadowNames,
@@ -130,6 +130,7 @@ import GHC.Types.Unique
 import GHC.Types.Unique.FM
 import GHC.Types.Unique.Set
 import GHC.Builtin.Uniques ( isFldNSUnique )
+import qualified Data.Set as Set
 
 import GHC.Unit.Module
 
@@ -145,7 +146,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Map.Strict as Map
 import qualified Data.Semigroup as S
 import System.IO.Unsafe ( unsafePerformIO )
-import {-# SOURCE #-} Language.Haskell.Syntax.ImpExp
+import Language.Haskell.Syntax.ImpExp
 
 {-
 ************************************************************************
@@ -627,6 +628,9 @@ greParent = gre_par
 
 greInfo :: GlobalRdrElt -> GREInfo
 greInfo = gre_info
+
+greStages :: GlobalRdrElt -> Set.Set ImportStage
+greStages g = Set.fromList (bagToList (fmap (is_staged . is_decl) (gre_imp g)))
 
 -- | See Note [Parents]
 data Parent = NoParent
