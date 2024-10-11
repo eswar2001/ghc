@@ -1,4 +1,4 @@
-{-# LANGUAGE SpliceImports #-}
+{-# LANGUAGE ExplicitStageImports #-}
 {-# LANGUAGE TemplateHaskell #-}
 module SI01 where
 

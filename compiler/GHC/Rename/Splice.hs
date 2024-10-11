@@ -970,6 +970,9 @@ checkThLocalName name
   | isUnboundName name   -- Do not report two errors for
   = return ()            --   $(not_in_scope args)
 
+  | isWiredInName name
+  = return ()
+
   | otherwise
   = do  { traceRn "checkThLocalName" (ppr name)
         ; mb_local_use <- getStageAndBindLevel name
@@ -981,10 +984,11 @@ checkThLocalName name
         ; traceRn "checkThLocalName" (ppr name <+> ppr bind_lvl
                                                <+> ppr use_stage
                                                <+> ppr use_lvl)
-        ; checkCrossStageLifting (StageCheckSplice name) top_lvl bind_lvl use_stage use_lvl name } } }
+        ; dflags <- getDynFlags
+        ; checkCrossStageLifting dflags (StageCheckSplice name) top_lvl bind_lvl use_stage use_lvl name } } }
 
 --------------------------------------
-checkCrossStageLifting :: StageCheckReason -> TopLevelFlag -> Set.Set ThLevel -> ThStage -> ThLevel
+checkCrossStageLifting :: DynFlags -> StageCheckReason -> TopLevelFlag -> Set.Set ThLevel -> ThStage -> ThLevel
                        -> Name -> TcM ()
 -- We are inside brackets, and (use_lvl > bind_lvl)
 -- Now we must check whether there's a cross-stage lift to do
@@ -994,13 +998,16 @@ checkCrossStageLifting :: StageCheckReason -> TopLevelFlag -> Set.Set ThLevel ->
 -- This code is similar to checkCrossStageLifting in GHC.Tc.Gen.Expr, but
 -- this is only run on *untyped* brackets.
 
-checkCrossStageLifting reason top_lvl bind_lvl use_stage use_lvl name
+checkCrossStageLifting dflags reason top_lvl bind_lvl use_stage use_lvl name
   | use_lvl `Set.member` bind_lvl = return ()
   | Brack _ (RnPendingUntyped ps_var) <- use_stage   -- Only for untyped brackets
   = do
       dflags <- getDynFlags
       let err = TcRnBadlyStaged reason bind_lvl use_lvl
       check_cross_stage_lifting err dflags top_lvl name ps_var
+  | Brack _ RnPendingTyped <- use_stage  -- Lift for typed brackets is inserted later.
+  , xopt LangExt.LiftCrossStagedPersistence dflags
+    = return ()
   | otherwise = addErrTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
 check_cross_stage_lifting :: TcRnMessage -> DynFlags -> TopLevelFlag -> Name -> TcRef [PendingRnSplice] -> TcM ()

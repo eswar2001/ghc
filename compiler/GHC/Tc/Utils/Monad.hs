@@ -218,7 +218,7 @@ import GHC.Types.Name.Ppr
 import GHC.Types.Unique.FM ( emptyUFM )
 import GHC.Types.Unique.Supply
 import GHC.Types.Annotations
-import GHC.Types.Basic( TopLevelFlag, TypeOrKind(..) )
+import GHC.Types.Basic( TopLevelFlag(..), TypeOrKind(..) )
 import GHC.Types.CostCentre.State
 import GHC.Types.SourceFile
 
@@ -2079,7 +2079,10 @@ getStageAndBindLevel :: Name -> TcRn (Maybe (TopLevelFlag, Set.Set ThLevel, ThSt
 getStageAndBindLevel name
   = do { env <- getLclEnv;
        ; case lookupNameEnv (getLclEnvThBndrs env) name of
-           Nothing                  -> return Nothing
+           Nothing                  -> do
+              lvls <- getExternalBindLvl name
+              pprTraceM "lvls" (ppr name $$ ppr lvls $$ ppr (getLclEnvThStage env))
+              return (Just (TopLevel, lvls, getLclEnvThStage env))
            Just (top_lvl, bind_lvl) -> return (Just (top_lvl, Set.singleton bind_lvl, getLclEnvThStage env)) }
 
 getExternalBindLvl :: Name -> TcRn (Set.Set ThLevel)

@@ -1,5 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude #-}
-{-# LANGUAGE SpliceImports #-}
+{-# LANGUAGE ExplicitStageImports #-}
 {-# LANGUAGE TemplateHaskell #-}
 module SI02 where
 
