@@ -1008,6 +1008,8 @@ checkCrossStageLifting dflags reason top_lvl bind_lvl use_stage use_lvl name
   | Brack _ RnPendingTyped <- use_stage  -- Lift for typed brackets is inserted later.
   , xopt LangExt.LiftCrossStagedPersistence dflags
     = return ()
+  | isTopLevel top_lvl
+  , xopt LangExt.PathCrossStagedPersistence dflags = return ()
   | otherwise = addErrTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
 check_cross_stage_lifting :: TcRnMessage -> DynFlags -> TopLevelFlag -> Name -> TcRef [PendingRnSplice] -> TcM ()
