@@ -14,7 +14,7 @@ test('SI07', [extra_files(["SI05A.hs"])], multimod_compile, ['SI07', '-fwrite-in
 test('SI08', [extra_files(["ClassA.hs", "InstanceA.hs"])], multimod_compile_fail, ['SI08', '-v0'])
 test('SI09', [extra_files(["ClassA.hs", "InstanceA.hs"])], multimod_compile, ['SI09', '-v0'])
 test('SI10', [extra_files(["ClassA.hs", "InstanceA.hs"])], multimod_compile, ['SI10', '-v0'])
-test('SI11', normal,  compile, [''])
-test('SI12', normal,  compile, [''])
+test('SI11', normal,  compile_fail, [''])
+test('SI12', normal,  compile_fail, [''])
 test('SI13', normal,  compile, [''])
 
