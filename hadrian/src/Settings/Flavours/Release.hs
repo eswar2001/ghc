@@ -4,4 +4,4 @@ import Settings.Flavours.Performance
 import Flavour
 
 releaseFlavour :: Flavour
-releaseFlavour = enableLateCCS $ enableHaddock performanceFlavour { name = "release" }
+releaseFlavour = enableHashUnitIds $ enableLateCCS $ enableHaddock performanceFlavour { name = "release" }

@@ -107,7 +107,7 @@ when compiling the `compiler` library, and `hsGhc` when compiling/linking the GH
     <td>-O2</td>
   </tr>
   <tr>
-    <th>release (same as perf with -haddock and +late-ccs)</td>
+    <th>release (same as perf with -haddock and +late-ccs+hash_unit_ids)</td>
     <td></td>
     <td>-O<br>-H64m</td>
     <td>-O<br>-H64m</td>
@@ -324,6 +324,10 @@ The supported transformers are listed below:
     <tr>
         <td><code>dump_stg</code></td>
         <td>Dump STG of all modules compiled by a stage1 compiler to a file</td>
+    </tr>
+    <tr>
+        <td><code>hash_unit_ids</code></td>
+        <td>Include a package hash in the unit id of built packages</td>
     </tr>
 </table>
 
