@@ -974,23 +974,26 @@ checkThLocalName name
   = return ()
 
   | otherwise
-  = do  { traceRn "checkThLocalName" (ppr name)
+  = do  { pprTraceM "checkThLocalName" (ppr name)
         ; mb_local_use <- getStageAndBindLevel name
         ; case mb_local_use of {
              Nothing -> return () ;  -- Not a locally-bound thing
              Just (top_lvl, bind_lvl, use_stage) ->
     do  { let use_lvl = thLevel use_stage
+        ; cur_mod <- extractModule <$> getGblEnv
+        ; let is_local = nameIsLocalOrFrom cur_mod name
        -- ; checkWellStaged (StageCheckSplice name) bind_lvl use_lvl
-        ; traceRn "checkThLocalName" (ppr name <+> ppr bind_lvl
+        ; pprTraceM "checkThLocalName" (ppr name <+> ppr bind_lvl
                                                <+> ppr use_stage
                                                <+> ppr use_lvl)
         ; dflags <- getDynFlags
-        ; checkCrossStageLifting dflags (StageCheckSplice name) top_lvl bind_lvl use_stage use_lvl name } } }
+        ; checkCrossStageLifting dflags (StageCheckSplice name) top_lvl is_local bind_lvl use_stage use_lvl name } } }
 
 --------------------------------------
 checkCrossStageLifting :: DynFlags
                        -> StageCheckReason
                        -> TopLevelFlag
+                       -> Bool
                        -> Set.Set ThLevel
                        -> ThStage
                        -> ThLevel
@@ -1003,7 +1006,7 @@ checkCrossStageLifting :: DynFlags
 -- This code is similar to checkCrossStageLifting in GHC.Tc.Gen.Expr, but
 -- this is only run on *untyped* brackets.
 
-checkCrossStageLifting dflags reason top_lvl bind_lvl use_stage use_lvl name
+checkCrossStageLifting dflags reason top_lvl is_local bind_lvl use_stage use_lvl name
   | use_lvl `Set.member` bind_lvl = return ()
   | Brack _ (RnPendingUntyped ps_var) <- use_stage   -- Only for untyped brackets
   = do
@@ -1014,6 +1017,10 @@ checkCrossStageLifting dflags reason top_lvl bind_lvl use_stage use_lvl name
   , xopt LangExt.LiftCrossStagedPersistence dflags
     = return ()
   | isTopLevel top_lvl
+  , is_local
+  , any (use_lvl >=) (Set.toList bind_lvl)
+  , xopt LangExt.PathCrossStagedPersistence dflags = return ()
+  | not is_local
   , xopt LangExt.PathCrossStagedPersistence dflags = return ()
   | otherwise = failWithTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
