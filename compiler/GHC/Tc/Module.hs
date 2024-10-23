@@ -157,6 +157,7 @@ import GHC.Unit.Types
 import GHC.Unit.State
 import GHC.Unit.Home
 import GHC.Unit.Module
+import GHC.Unit.Module.Graph
 import GHC.Unit.Module.Warnings
 import GHC.Unit.Module.ModSummary
 import GHC.Unit.Module.ModIface
@@ -447,7 +448,7 @@ isTypeSubsequenceOf (t1:t1s) (t2:t2s)
 
 tcRnImports :: HscEnv -> [(LImportDecl GhcPs, SDoc)] -> TcM ([NonEmpty ClassDefaults], TcGblEnv)
 tcRnImports hsc_env import_decls
-  = do  { (rn_imports, imp_user_spec, rdr_env, bind_env, imports, defaults, hpc_info) <- rnImports import_decls ;
+  = do  { (rn_imports, imp_user_spec, rdr_env, _, imports, defaults, hpc_info) <- rnImports import_decls ;
 
         ; this_mod <- getModule
         ; gbl_env <- getGblEnv
@@ -460,9 +461,9 @@ tcRnImports hsc_env import_decls
                 -- filtering also ensures that we don't see instances from
                 -- modules batch (@--make@) compiled before this one, but
                 -- which are not below this one.
-              ; (home_insts, home_fam_insts) =
+              ; (home_inst_bind_env, home_insts, home_fam_insts) =
 
-                    hptInstancesBelow hsc_env unitId mnwib
+                    hptInstancesBelow hsc_env unitId zeroStage mnwib
 
               } ;
 
@@ -479,7 +480,7 @@ tcRnImports hsc_env import_decls
         ; updGblEnv ( \ gbl ->
             gbl {
               tcg_rdr_env      = tcg_rdr_env gbl `plusGlobalRdrEnv` rdr_env,
-              tcg_bind_env     = tcg_bind_env gbl    `plusNameEnv` bind_env,
+              tcg_bind_env     = tcg_bind_env gbl    `plusNameEnv` home_inst_bind_env,
               tcg_imports      = tcg_imports gbl `plusImportAvails` imports,
               tcg_import_decls = imp_user_spec,
               tcg_rn_imports   = rn_imports,

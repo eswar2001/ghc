@@ -84,6 +84,7 @@ import GHC.StgToJS.Linker.Linker (embedJsFile)
 import Language.Haskell.Syntax.Module.Name
 import GHC.Unit.Home.ModInfo
 import GHC.Runtime.Loader (initializePlugins)
+import GHC.Unit.Module.Graph
 
 newtype HookedUse a = HookedUse { runHookedUse :: (Hooks, PhaseHook) -> IO a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadThrow, MonadCatch) via (ReaderT (Hooks, PhaseHook) IO)
@@ -766,7 +767,7 @@ runHscPhase pipe_env hsc_env0 input_fn src_flavour = do
   type_env_var <- newIORef emptyNameEnv
   let hsc_env' = hsc_env { hsc_type_env_vars = knotVarsFromModuleEnv (mkModuleEnv [(mod, type_env_var)]) }
 
-  status <- hscRecompStatus (Just msg) hsc_env' mod_summary
+  status <- hscRecompStatus (Just msg) hsc_env' todoStage mod_summary
                         Nothing emptyHomeModInfoLinkable (1, 1)
 
   return (hsc_env', mod_summary, status)

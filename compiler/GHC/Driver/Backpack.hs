@@ -580,7 +580,7 @@ mkBackpackMsg = do
             NeedsRecompile reason0 -> showMsg (text "Instantiating ") $ case reason0 of
               MustCompile -> empty
               RecompBecause reason -> text " [" <> pprWithUnitState state (ppr reason) <> text "]"
-        ModuleNode _ _ ->
+        ModuleNode _ _ _ ->
           case recomp of
             UpToDate
               | verbosity (hsc_dflags hsc_env) >= 2 -> showMsg (text "Skipping  ") empty
@@ -727,8 +727,8 @@ hsunitModuleGraph do_link unit = do
         pn = hsPackageName (unLoc (hsunitName unit))
         home_unit = hsc_home_unit hsc_env
 
-        sig_keys = flip map (homeUnitInstantiations home_unit) $ \(mod_name, _) -> NodeKey_Module (ModNodeKeyWithUid (GWIB mod_name NotBoot) (homeUnitId home_unit))
-        keys = [NodeKey_Module (ModNodeKeyWithUid gwib (homeUnitId home_unit)) | (DeclD hsc_src lmodname _) <- map unLoc decls, let gwib = GWIB (unLoc lmodname) (hscSourceToIsBoot hsc_src) ]
+        sig_keys = flip map (homeUnitInstantiations home_unit) $ \(mod_name, _) -> NodeKey_Module (ModNodeKeyWithUid (GWIB mod_name NotBoot) todoStage (homeUnitId home_unit))
+        keys = [NodeKey_Module (ModNodeKeyWithUid gwib todoStage (homeUnitId home_unit)) | (DeclD hsc_src lmodname _) <- map unLoc decls, let gwib = GWIB (unLoc lmodname) (hscSourceToIsBoot hsc_src) ]
 
     --  1. Create a HsSrcFile/HsigFile summary for every
     --  explicitly mentioned module/signature.
@@ -742,7 +742,7 @@ hsunitModuleGraph do_link unit = do
     --  requirement.
     let hsig_set = Set.fromList
           [ ms_mod_name ms
-          | ModuleNode _ ms <- nodes
+          | ModuleNode _ _ ms <- nodes
           , ms_hsc_src ms == HsigFile
           ]
     req_nodes <- fmap catMaybes . forM (homeUnitInstantiations home_unit) $ \(mod_name, _) ->
@@ -816,8 +816,8 @@ summariseRequirement pn mod_name = do
         ms_hspp_opts = dflags,
         ms_hspp_buf = Nothing
         }
-    let nodes = [NodeKey_Module (ModNodeKeyWithUid (GWIB mn NotBoot) (homeUnitId home_unit)) | mn <- extra_sig_imports ]
-    return (ModuleNode nodes ms)
+    let nodes = [NodeKey_Module (ModNodeKeyWithUid (GWIB mn NotBoot) todoStage (homeUnitId home_unit)) | mn <- extra_sig_imports ]
+    return (ModuleNode nodes todoStage ms)
 
 summariseDecl :: PackageName
               -> HscSource
@@ -930,12 +930,12 @@ hsModuleToModSummary home_keys pn hsc_src modname
     let inst_nodes = map NodeKey_Unit inst_deps
         mod_nodes  =
           -- hs-boot edge
-          [k | k <- [NodeKey_Module (ModNodeKeyWithUid (GWIB (ms_mod_name ms) IsBoot)  (moduleUnitId this_mod))], NotBoot == isBootSummary ms,  k `elem` home_keys ] ++
+          [k | k <- [NodeKey_Module (ModNodeKeyWithUid (GWIB (ms_mod_name ms) IsBoot) todoStage  (moduleUnitId this_mod))], NotBoot == isBootSummary ms,  k `elem` home_keys ] ++
           -- Normal edges
-          [k | (_, _,  mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) (moduleUnitId this_mod)), k `elem` home_keys]
+          [k | (_, _,  mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) todoStage (moduleUnitId this_mod)), k `elem` home_keys]
 
 
-    return (ModuleNode (mod_nodes ++ inst_nodes) ms)
+    return (ModuleNode (mod_nodes ++ inst_nodes) todoStage ms)
 
 -- | Create a new, externally provided hashed unit id from
 -- a hash.

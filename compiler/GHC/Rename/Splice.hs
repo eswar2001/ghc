@@ -988,7 +988,12 @@ checkThLocalName name
         ; checkCrossStageLifting dflags (StageCheckSplice name) top_lvl bind_lvl use_stage use_lvl name } } }
 
 --------------------------------------
-checkCrossStageLifting :: DynFlags -> StageCheckReason -> TopLevelFlag -> Set.Set ThLevel -> ThStage -> ThLevel
+checkCrossStageLifting :: DynFlags
+                       -> StageCheckReason
+                       -> TopLevelFlag
+                       -> Set.Set ThLevel
+                       -> ThStage
+                       -> ThLevel
                        -> Name -> TcM ()
 -- We are inside brackets, and (use_lvl > bind_lvl)
 -- Now we must check whether there's a cross-stage lift to do
@@ -1010,7 +1015,7 @@ checkCrossStageLifting dflags reason top_lvl bind_lvl use_stage use_lvl name
     = return ()
   | isTopLevel top_lvl
   , xopt LangExt.PathCrossStagedPersistence dflags = return ()
-  | otherwise = addErrTc (TcRnBadlyStaged reason bind_lvl use_lvl)
+  | otherwise = failWithTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
 check_cross_stage_lifting :: TcRnMessage -> DynFlags -> TopLevelFlag -> Name -> TcRef [PendingRnSplice] -> TcM ()
 check_cross_stage_lifting reason dflags top_lvl name ps_var

@@ -163,6 +163,7 @@ import GHC.Tc.Types
 import GHC.Tc.Types.Origin
 import GHC.Tc.Types.CtLoc
 import GHC.Tc.Types.Constraint
+import GHC.Tc.Types.LclEnv
 
 import GHC.Builtin.Names ( unsatisfiableClassNameKey )
 
@@ -183,6 +184,8 @@ import GHC.Types.Var
 import GHC.Types.Var.Set
 import GHC.Types.Unique.Supply
 import GHC.Types.Unique.Set( elementOfUniqSet )
+import GHC.Types.Name.Env
+import GHC.Types.Id
 
 import GHC.Unit.Module ( HasModule, getModule, extractModule )
 import qualified GHC.Rename.Env as TcM
@@ -205,6 +208,7 @@ import Data.Foldable
 import qualified Data.Semigroup as S
 import GHC.Types.SrcLoc
 import GHC.Rename.Env
+import GHC.LanguageExtensions as LangExt
 
 #if defined(DEBUG)
 import GHC.Types.Unique.Set (nonDetEltsUniqSet)
@@ -1414,26 +1418,62 @@ checkWellStagedDFun :: CtLoc -> InstanceWhat -> PredType -> TcS ()
 checkWellStagedDFun loc what pred
   = do
       mbind_lvl <- checkWellStagedInstanceWhat what
+      env <- getLclEnv
+      use_lvl <- thLevel <$> (wrapTcS $ TcM.getStage)
       case mbind_lvl of
-        Just bind_lvl | bind_lvl > impLevel ->
+        Just (bind_lvl, is_local) ->
           wrapTcS $ TcM.setCtLocM loc $ do
               { use_stage <- TcM.getStage
-              ; TcM.checkWellStaged (StageCheckInstance what pred) (Set.singleton bind_lvl) (thLevel use_stage) }
+              ; dflags <- getDynFlags
+              ; checkCrossStageClass dflags (StageCheckInstance what pred) bind_lvl (thLevel use_stage) is_local  }
         _ ->
+          --wrapTcS $ TcM.addErrTc (TcRnBadlyStaged (StageCheckInstance what pred) (Set.empty) use_lvl)
           return ()
+
+
+-- TODO: Unify this with checkCrossStageLifting function
+checkCrossStageClass :: DynFlags -> StageCheckReason -> Set.Set ThLevel -> ThLevel
+                            -> Bool -> TcM ()
+checkCrossStageClass dflags reason bind_lvl use_lvl is_local
+  | use_lvl `Set.member` bind_lvl = return ()
+  -- With path CSP, using later than bound is fine
+  | xopt LangExt.PathCrossStagedPersistence dflags
+  , any (use_lvl >=) bind_lvl  = return ()
+  -- If the Id is imported, ie global, then allow with PathCrossStagedPersist
+  | not is_local
+  , xopt LangExt.PathCrossStagedPersistence dflags
+  = return ()
+  | otherwise = TcM.failWithTc (TcRnBadlyStaged reason bind_lvl use_lvl)
+
+
 
 -- | Returns the ThLevel of evidence for the solved constraint (if it has evidence)
 -- See Note [Well-staged instance evidence]
-checkWellStagedInstanceWhat :: InstanceWhat -> TcS (Maybe ThLevel)
+checkWellStagedInstanceWhat :: InstanceWhat -> TcS (Maybe (Set.Set ThLevel, Bool))
 checkWellStagedInstanceWhat what
   | TopLevInstance { iw_dfun_id = dfun_id } <- what
-    = return $ Just (TcM.topIdLvl dfun_id)
+    = do
+        cur_mod <- extractModule <$> getGblEnv
+        gbl_env <- getGblEnv
+        pprTraceM "checkWellStaged" (ppr what)
+        pprTraceM "checkWellStaged" (ppr (tcg_bind_env gbl_env))
+        pprTraceM "checkWellStaged"
+          (ppr (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id)))
+        return $ (,isLocalId dfun_id)  <$> (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id))
+        return $ case  lookupNameEnv (tcg_bind_env gbl_env) (idName dfun_id) of
+          -- The instance comes from HPT imported module
+          Just res -> Just (res, isLocalId dfun_id)
+          Nothing ->
+            if isLocalId dfun_id
+              then Just ( (Set.singleton outerLevel, True) )
+              else Just ( (Set.singleton impLevel, False) )
+--        return $ Just (TcM.topIdLvl dfun_id)
   | BuiltinTypeableInstance tc <- what
     = do
         cur_mod <- extractModule <$> getGblEnv
         return $ Just (if nameIsLocalOrFrom cur_mod (tyConName tc)
-                        then outerLevel
-                        else impLevel)
+                        then (Set.singleton outerLevel, True)
+                        else (Set.singleton impLevel, False))
   | otherwise = return Nothing
 
 {-

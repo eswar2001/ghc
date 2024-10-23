@@ -143,6 +143,9 @@ mkPrelImports this_mod loc implicit_prelude import_decls
         && case ideclPkgQual decl of
             NoRawPkgQual -> True
             RawPkgQual {} -> False
+        && case ideclStage decl of
+              NormalStage -> True
+              _ -> False
 
 
       loc' = noAnnSrcSpan loc

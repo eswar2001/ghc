@@ -81,6 +81,10 @@ import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Utils.Logger
 
+import GHC.Tc.Types.TH
+import Data.List
+
+
 import Data.IORef
 import qualified Data.Set as Set
 import GHC.Unit.Module.Graph
@@ -232,31 +236,35 @@ hptAllInstances hsc_env
     in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
 
 -- | Find instances visible from the given set of imports
-hptInstancesBelow :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> (InstEnv, [FamInst])
-hptInstancesBelow hsc_env uid mnwib =
+hptInstancesBelow :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> (NameEnv (Set.Set ThLevel), InstEnv, [FamInst])
+hptInstancesBelow hsc_env uid lvl mnwib =
   let
+    mk_bind_env clvl ie = mkNameEnv $ flip zip (repeat (Set.singleton clvl)) $ map is_dfun_name (instEnvElts ie)
     mn = gwib_mod mnwib
-    (insts, famInsts) =
-        unzip $ hptSomeThingsBelowUs (\mod_info ->
+    (bind_env, insts, famInsts) =
+        unzip3 $ hptSomeThingsBelowUs (\mlvl mod_info ->
                                      let details = hm_details mod_info
                                      -- Don't include instances for the current module
-                                     in if moduleName (mi_module (hm_iface mod_info)) == mn
+                                     in pprTrace "lvl" (ppr mlvl) $ if moduleName (mi_module (hm_iface mod_info)) == mn
                                           then []
-                                          else [(md_insts details, md_fam_insts details)])
+                                          else [(mk_bind_env mlvl (md_insts details), md_insts details, md_fam_insts details)])
                              True -- Include -hi-boot
                              hsc_env
                              uid
+                             lvl
                              mnwib
-  in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
+    -- Horrible horrible
+    hack = mkInstEnv (nubBy (\c1 c2 -> instanceDFunId c1 == instanceDFunId c2) (concatMap instEnvElts insts))
+  in (foldl' (plusNameEnv_C Set.union) emptyNameEnv bind_env, hack, concat famInsts)
 
 -- | Get rules from modules "below" this one (in the dependency sense)
-hptRules :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> [CoreRule]
-hptRules = hptSomeThingsBelowUs (md_rules . hm_details) False
+hptRules :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> [CoreRule]
+hptRules = hptSomeThingsBelowUs (\lvl info -> md_rules (hm_details info)) False
 
 
 -- | Get annotations from modules "below" this one (in the dependency sense)
-hptAnns :: HscEnv -> Maybe (UnitId, ModuleNameWithIsBoot) -> [Annotation]
-hptAnns hsc_env (Just (uid, mn)) = hptSomeThingsBelowUs (md_anns . hm_details) False hsc_env uid mn
+hptAnns :: HscEnv -> Maybe (UnitId, ModuleStage, ModuleNameWithIsBoot) -> [Annotation]
+hptAnns hsc_env (Just (uid, lvl, mn)) = hptSomeThingsBelowUs (\lvl info -> md_anns (hm_details info)) False hsc_env uid lvl mn
 hptAnns hsc_env Nothing = hptAllThings (md_anns . hm_details) hsc_env
 
 hptAllThings :: (HomeModInfo -> [a]) -> HscEnv -> [a]
@@ -265,8 +273,8 @@ hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . 
 
 -- | Get things from modules "below" this one (in the dependency sense)
 -- C.f Inst.hptInstances
-hptSomeThingsBelowUs :: (HomeModInfo -> [a]) -> Bool -> HscEnv -> UnitId -> ModuleNameWithIsBoot -> [a]
-hptSomeThingsBelowUs extract include_hi_boot hsc_env uid mn
+hptSomeThingsBelowUs :: (ModuleStage -> HomeModInfo -> [a]) -> Bool -> HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> [a]
+hptSomeThingsBelowUs extract include_hi_boot hsc_env uid lvl mn
   | isOneShot (ghcMode (hsc_dflags hsc_env)) = []
 
   | otherwise
@@ -276,7 +284,7 @@ hptSomeThingsBelowUs extract include_hi_boot hsc_env uid mn
     [ thing
     |
     -- Find each non-hi-boot module below me
-      (ModNodeKeyWithUid (GWIB { gwib_mod = mod, gwib_isBoot = is_boot }) mod_uid) <- Set.toList (moduleGraphModulesBelow mg uid mn)
+      (ModNodeKeyWithUid (GWIB { gwib_mod = mod, gwib_isBoot = is_boot }) mod_lvl mod_uid) <- Set.toList (moduleGraphModulesBelow mg uid lvl mn)
     , include_hi_boot || (is_boot == NotBoot)
 
         -- unsavoury: when compiling the base package with --make, we
@@ -288,11 +296,11 @@ hptSomeThingsBelowUs extract include_hi_boot hsc_env uid mn
 
         -- Look it up in the HPT
     , let things = case lookupHug hug mod_uid mod of
-                    Just info -> extract info
+                    Just info -> extract mod_lvl info
                     Nothing -> pprTrace "WARNING in hptSomeThingsBelowUs" msg mempty
           msg = vcat [text "missing module" <+> ppr mod,
                      text "When starting from"  <+> ppr mn,
-                     text "below:" <+> ppr (moduleGraphModulesBelow mg uid mn),
+                     text "below:" <+> ppr (moduleGraphModulesBelow mg uid lvl mn),
                       text "Probable cause: out-of-date interface files"]
                         -- This really shouldn't happen, but see #962
     , thing <- things
@@ -310,7 +318,7 @@ prepareAnnotations hsc_env mb_guts = do
         -- Extract dependencies of the module if we are supplied one,
         -- otherwise load annotations from all home package table
         -- entries regardless of dependency ordering.
-        get_mod mg = (moduleUnitId (mg_module mg), GWIB (moduleName (mg_module mg)) NotBoot)
+        get_mod mg = (moduleUnitId (mg_module mg), zeroStage, GWIB (moduleName (mg_module mg)) NotBoot)
         home_pkg_anns  = (mkAnnEnv . hptAnns hsc_env) $ fmap get_mod mb_guts
         other_pkg_anns = eps_ann_env eps
         ann_env        = foldl1' plusAnnEnv $ catMaybes [mb_this_module_anns,

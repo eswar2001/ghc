@@ -820,17 +820,18 @@ type Messager = HscEnv -> (Int,Int) -> RecompileRequired -> ModuleGraphNode -> I
 -- recompile a module or not!
 hscRecompStatus :: Maybe Messager
                 -> HscEnv
+                -> ModuleStage
                 -> ModSummary
                 -> Maybe ModIface
                 -> HomeModLinkable
                 -> (Int,Int)
                 -> IO HscRecompStatus
 hscRecompStatus
-    mHscMessage hsc_env mod_summary mb_old_iface old_linkable mod_index
+    mHscMessage hsc_env lvl mod_summary mb_old_iface old_linkable mod_index
   = do
     let
         msg what = case mHscMessage of
-          Just hscMessage -> hscMessage hsc_env mod_index what (ModuleNode [] mod_summary)
+          Just hscMessage -> hscMessage hsc_env mod_index what (ModuleNode [] lvl mod_summary)
           Nothing -> return ()
 
     -- First check to see if the interface file agrees with the

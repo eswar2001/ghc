@@ -313,6 +313,7 @@ initTc hsc_env hsc_src keep_rn_syntax mod loc do_this
                 tcg_semantic_mod   = homeModuleInstantiation mhome_unit mod,
                 tcg_src            = hsc_src,
                 tcg_rdr_env        = emptyGlobalRdrEnv,
+                tcg_bind_env       = emptyNameEnv,
                 tcg_fix_env        = emptyNameEnv,
                 tcg_default        = emptyDefaultEnv,
                 tcg_default_exports = emptyDefaultEnv,

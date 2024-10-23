@@ -170,18 +170,18 @@ get_link_deps opts pls maybe_normal_osuf span mods = do
               let deps = Set.insert (NodeKey_Module nk) trans_deps
                   -- See #936 and the ghci.prog007 test for why we have to continue traversing through
                   -- boot modules.
-                  todo_boot_mods = [ModNodeKeyWithUid (GWIB mn NotBoot) uid | NodeKey_Module (ModNodeKeyWithUid (GWIB mn IsBoot) uid) <- Set.toList trans_deps]
+                  todo_boot_mods = [ModNodeKeyWithUid (GWIB mn NotBoot) lvl uid | NodeKey_Module (ModNodeKeyWithUid (GWIB mn IsBoot) lvl uid) <- Set.toList trans_deps]
               in make_deps_loop (found_units, deps `Set.union` found_mods) (todo_boot_mods ++ nexts)
             Nothing ->
-              let (ModNodeKeyWithUid _ uid) = nk
+              let (ModNodeKeyWithUid _ lvl uid) = nk
               in make_deps_loop (addOneToUniqDSet found_units uid, found_mods) nexts
 
-    mkNk m = ModNodeKeyWithUid (GWIB (moduleName m) NotBoot) (moduleUnitId m)
+    mkNk m = ModNodeKeyWithUid (GWIB (moduleName m) NotBoot) todoStage (moduleUnitId m)
     (init_pkg_set, all_deps) = make_deps_loop (emptyUniqDSet, Set.empty) $ map mkNk (filterOut isInteractiveModule mods)
 
     all_home_mods = [with_uid | NodeKey_Module with_uid <- Set.toList all_deps]
 
-    get_mod_info (ModNodeKeyWithUid gwib uid) =
+    get_mod_info (ModNodeKeyWithUid gwib lvl uid) =
       case lookupHug (ue_home_unit_graph unit_env) uid (gwib_mod gwib) of
         Just hmi ->
           let iface = (hm_iface hmi)

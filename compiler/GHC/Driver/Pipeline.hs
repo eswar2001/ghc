@@ -124,6 +124,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Time        ( getCurrentTime )
 import GHC.Iface.Recomp
 import GHC.Types.Unique.DSet
+import GHC.Unit.Module.Graph
 
 -- Simpler type synonym for actions in the pipeline monad
 type P m = TPipelineClass TPhase m
@@ -208,6 +209,7 @@ preprocess hsc_env input_fn mb_input_buf mb_phase =
 
 
 compileOne :: HscEnv
+           -> ModuleStage
            -> ModSummary      -- ^ summary for module being compiled
            -> Int             -- ^ module N ...
            -> Int             -- ^ ... of M
@@ -219,6 +221,7 @@ compileOne = compileOne' (Just batchMsg)
 
 compileOne' :: Maybe Messager
             -> HscEnv
+            -> ModuleStage
             -> ModSummary      -- ^ summary for module being compiled
             -> Int             -- ^ module N ...
             -> Int             -- ^ ... of M
@@ -227,7 +230,7 @@ compileOne' :: Maybe Messager
             -> IO HomeModInfo   -- ^ the complete HomeModInfo, if successful
 
 compileOne' mHscMessage
-            hsc_env0 summary mod_index nmods mb_old_iface mb_old_linkable
+            hsc_env0 lvl summary mod_index nmods mb_old_iface mb_old_linkable
  = do
 
    debugTraceMsg logger 2 (text "compile: input file" <+> text input_fnpp)
@@ -242,7 +245,7 @@ compileOne' mHscMessage
    -- Initialise plugins here for any plugins enabled locally for a module.
    plugin_hsc_env <- initializePlugins hsc_env
    let pipe_env = mkPipeEnv NoStop input_fn Nothing pipelineOutput
-   status <- hscRecompStatus mHscMessage plugin_hsc_env upd_summary
+   status <- hscRecompStatus mHscMessage plugin_hsc_env lvl upd_summary
                 mb_old_iface mb_old_linkable (mod_index, nmods)
    let pipeline = hscPipeline pipe_env (setDumpPrefix pipe_env plugin_hsc_env, upd_summary, status)
    (iface, linkable) <- runPipeline (hsc_hooks plugin_hsc_env) pipeline
