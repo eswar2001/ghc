@@ -43,7 +43,11 @@ module GHC.Unit.Module.Graph
    , ModuleStage
    , zeroStage
    , todoStage
+   , moduleStageToThLevel
+   , incModuleStage
+   , decModuleStage
    , collapseModuleGraph
+   , collapseModuleGraphNodes
    )
 where
 
@@ -141,13 +145,20 @@ nodeKeyModName :: NodeKey -> Maybe ModuleName
 nodeKeyModName (NodeKey_Module mk) = Just (gwib_mod $ mnkModuleName mk)
 nodeKeyModName _ = Nothing
 
-type ModuleStage = Int
+newtype ModuleStage = ModuleStage Int deriving (Eq, Ord)
+
+instance Outputable ModuleStage where
+  ppr (ModuleStage p) = ppr p
 
 zeroStage :: ModuleStage
-zeroStage = 0
+zeroStage = ModuleStage 1
 
 todoStage :: HasCallStack => ModuleStage
 todoStage = pprTrace "todoStage" callStackDoc zeroStage
+
+moduleStageToThLevel (ModuleStage m) = m
+incModuleStage (ModuleStage m) = ModuleStage (m + 1)
+decModuleStage (ModuleStage m) = ModuleStage (m - 1)
 
 data ModNodeKeyWithUid = ModNodeKeyWithUid { mnkModuleName :: !ModuleNameWithIsBoot
                                            , mnkLevel      :: !ModuleStage
@@ -155,7 +166,7 @@ data ModNodeKeyWithUid = ModNodeKeyWithUid { mnkModuleName :: !ModuleNameWithIsB
 
 instance Outputable ModNodeKeyWithUid where
   ppr (ModNodeKeyWithUid mnwib lvl uid)
-    | lvl == 0 = ppr uid <> colon <> ppr mnwib
+    | lvl == zeroStage = ppr uid <> colon <> ppr mnwib
     | otherwise = ppr uid <> colon <> ppr mnwib <> text "@" <> ppr lvl
 
 -- | A '@ModuleGraph@' contains all the nodes from the home package (only). See
@@ -256,9 +267,11 @@ extendMG' mg = \case
 mkModuleGraph :: [ModuleGraphNode] -> ModuleGraph
 mkModuleGraph = foldr (flip extendMG') emptyMG
 
+collapseModuleGraph = mkModuleGraph . collapseModuleGraphNodes . mgModSummaries'
+
 -- Collapse information about levels and map everything to level 0
-collapseModuleGraph :: [ModuleGraphNode] -> [ModuleGraphNode]
-collapseModuleGraph m = nub $ map go m
+collapseModuleGraphNodes :: [ModuleGraphNode] -> [ModuleGraphNode]
+collapseModuleGraphNodes m = nub $ map go m
   where
     go (ModuleNode deps _lvl ms) = ModuleNode (nub $ map collapseNodeKey deps) zeroStage ms
     go (LinkNode deps uid) = LinkNode (nub $ map collapseNodeKey deps) uid
@@ -311,7 +324,7 @@ showModMsg dflags recomp (ModuleNode _ lvl mod_summary) =
       then text mod_str
       else hsep $
          [ text (mod_str ++ replicate (max 0 (16 - length mod_str)) ' ')
-         , (if lvl == 0 then empty else int lvl)
+         , (if lvl == zeroStage then empty else ppr lvl)
          , char '('
          , text (op $ msHsFilePath mod_summary) <> char ','
          , message, char ')' ]
@@ -351,7 +364,7 @@ nodeDependencies :: Bool -> ModuleGraphNode -> [NodeKey]
 nodeDependencies drop_hs_boot_nodes = \case
     LinkNode deps _uid -> deps
     InstantiationNode uid iuid ->
-      NodeKey_Module . (\mod -> ModNodeKeyWithUid (GWIB mod NotBoot) 0 uid)  <$> uniqDSetToList (instUnitHoles iuid)
+      NodeKey_Module . (\mod -> ModNodeKeyWithUid (GWIB mod NotBoot) zeroStage uid)  <$> uniqDSetToList (instUnitHoles iuid)
     ModuleNode deps _lvl _ms ->
       map drop_hs_boot deps
   where

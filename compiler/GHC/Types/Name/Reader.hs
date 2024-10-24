@@ -630,7 +630,9 @@ greInfo :: GlobalRdrElt -> GREInfo
 greInfo = gre_info
 
 greStages :: GlobalRdrElt -> Set.Set ImportStage
-greStages g = Set.fromList (bagToList (fmap (is_staged . is_decl) (gre_imp g)))
+greStages g =
+  if gre_lcl g then Set.singleton NormalStage
+                 else Set.fromList (bagToList (fmap (is_staged . is_decl) (gre_imp g)))
 
 -- | See Note [Parents]
 data Parent = NoParent

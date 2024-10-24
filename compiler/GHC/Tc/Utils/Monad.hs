@@ -2083,7 +2083,13 @@ getStageAndBindLevel name
            Nothing                  -> do
               lvls <- getExternalBindLvl name
               if Set.empty == lvls
-                then pprTrace "NO_LVLS" (ppr name) (return Nothing)
+                -- This case happens when code is generated for identifiers which are not
+                -- in scope.
+                --
+                -- TODO: What happens if someone generates [|| GHC.Magic.dataToTag# ||]
+                then do
+                  env <- getGlobalRdrEnv
+                  pprTrace "NO_LVLS" (ppr env $$ ppr name) (return Nothing)
                 else return (Just (TopLevel, lvls, getLclEnvThStage env))
            Just (top_lvl, bind_lvl) -> return (Just (top_lvl, Set.singleton bind_lvl, getLclEnvThStage env)) }
 

@@ -667,8 +667,8 @@ createBuildPlan mod_graph maybe_top_mod =
 
   in
 
-    assertPpr (sum (map countMods build_plan) == length (collapseModuleGraph $ mgModSummaries' mod_graph))
-              (vcat [text "Build plan missing nodes:", (text "PLAN:" <+> ppr (sum (map countMods build_plan))), (text "GRAPH:" <+> ppr (length (collapseModuleGraph $ mgModSummaries' mod_graph )))])
+    assertPpr (sum (map countMods build_plan) == length (collapseModuleGraphNodes $ mgModSummaries' mod_graph))
+              (vcat [text "Build plan missing nodes:", (text "PLAN:" <+> ppr (sum (map countMods build_plan))), (text "GRAPH:" <+> ppr (length (collapseModuleGraphNodes $ mgModSummaries' mod_graph )))])
               build_plan
 
 mkWorkerLimit :: DynFlags -> IO WorkerLimit
@@ -1478,7 +1478,7 @@ topSortModuleGraph
 topSortModuleGraph drop_hs_boot_nodes module_graph mb_root_mod =
     -- stronglyConnCompG flips the original order, so if we reverse
     -- the summaries we get a stable topological sort.
-  topSortModules drop_hs_boot_nodes (reverse $ collapseModuleGraph $ mgModSummaries' module_graph) mb_root_mod
+  topSortModules drop_hs_boot_nodes (reverse $ collapseModuleGraphNodes $ mgModSummaries' module_graph) mb_root_mod
 
 topSortModules :: Bool -> [ModuleGraphNode] -> Maybe HomeUnitModule -> [SCC ModuleGraphNode]
 topSortModules drop_hs_boot_nodes summaries mb_root_mod
@@ -1637,8 +1637,8 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
           [(ms_unitid ms, offsetStage lvl st, b, c) | (st, b, c) <- msDeps ms ]
 
         offsetStage lvl NormalStage = lvl
-        offsetStage lvl QuoteStage  = lvl + 1
-        offsetStage lvl SpliceStage = lvl - 1
+        offsetStage lvl QuoteStage  = incModuleStage lvl
+        offsetStage lvl SpliceStage = decModuleStage lvl
 
         logger = hsc_logger hsc_env
 

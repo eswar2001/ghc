@@ -17,4 +17,6 @@ test('SI10', [extra_files(["ClassA.hs", "InstanceA.hs"])], multimod_compile, ['S
 test('SI11', normal,  compile_fail, [''])
 test('SI12', normal,  compile_fail, [''])
 test('SI13', normal,  compile, [''])
+test('SI14', normal,  compile_fail, [''])
+test('SI15', normal,  compile_fail, [''])
 

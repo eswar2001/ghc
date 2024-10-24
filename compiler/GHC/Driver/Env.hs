@@ -239,7 +239,7 @@ hptAllInstances hsc_env
 hptInstancesBelow :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> (NameEnv (Set.Set ThLevel), InstEnv, [FamInst])
 hptInstancesBelow hsc_env uid lvl mnwib =
   let
-    mk_bind_env clvl ie = mkNameEnv $ flip zip (repeat (Set.singleton clvl)) $ map is_dfun_name (instEnvElts ie)
+    mk_bind_env clvl ie = mkNameEnv $ flip zip (repeat (Set.singleton (moduleStageToThLevel clvl))) $ map is_dfun_name (instEnvElts ie)
     mn = gwib_mod mnwib
     (bind_env, insts, famInsts) =
         unzip3 $ hptSomeThingsBelowUs (\mlvl mod_info ->
@@ -255,7 +255,7 @@ hptInstancesBelow hsc_env uid lvl mnwib =
                              mnwib
     -- Horrible horrible
     hack = mkInstEnv (nubBy (\c1 c2 -> instanceDFunId c1 == instanceDFunId c2) (concatMap instEnvElts insts))
-  in (foldl' (plusNameEnv_C Set.union) emptyNameEnv bind_env, hack, concat famInsts)
+  in ((foldl' (plusNameEnv_C Set.union) emptyNameEnv bind_env), hack, concat famInsts)
 
 -- | Get rules from modules "below" this one (in the dependency sense)
 hptRules :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> [CoreRule]

@@ -123,6 +123,7 @@ get_link_deps opts pls maybe_normal_osuf span mods = do
             else do
               (pkgs, mmods) <- unzip <$> mapM get_mod_info all_home_mods
               return (catMaybes mmods, unionManyUniqDSets (init_pkg_set : pkgs))
+      pprTraceM "ld" (ppr (all_home_mods, mods_s, pkgs_s))
 
       let
         -- 2.  Exclude ones already linked

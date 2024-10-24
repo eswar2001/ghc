@@ -1466,7 +1466,9 @@ checkWellStagedInstanceWhat what
           Nothing ->
             if isLocalId dfun_id
               then Just ( (Set.singleton outerLevel, True) )
-              else Just ( (Set.singleton impLevel, False) )
+              -- TODO: Instances coming from external packages also need somehow
+              -- to deal with splice imports
+              else Just ( (Set.fromList [impLevel, outerLevel], False) )
 --        return $ Just (TcM.topIdLvl dfun_id)
   | BuiltinTypeableInstance tc <- what
     = do
