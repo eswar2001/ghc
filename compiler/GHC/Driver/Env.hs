@@ -245,7 +245,7 @@ hptInstancesBelow hsc_env uid lvl mnwib =
         unzip3 $ hptSomeThingsBelowUs (\mlvl mod_info ->
                                      let details = hm_details mod_info
                                      -- Don't include instances for the current module
-                                     in pprTrace "lvl" (ppr mlvl) $ if moduleName (mi_module (hm_iface mod_info)) == mn
+                                     in if moduleName (mi_module (hm_iface mod_info)) == mn
                                           then []
                                           else [(mk_bind_env mlvl (md_insts details), md_insts details, md_fam_insts details)])
                              True -- Include -hi-boot

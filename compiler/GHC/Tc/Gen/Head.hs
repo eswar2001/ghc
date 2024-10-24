@@ -1060,7 +1060,7 @@ checkThLocalId :: Id -> TcM ()
 -- Here we just add constraints for cross-stage lifting
 checkThLocalId id
   = do  { mb_local_use <- getStageAndBindLevel (idName id)
-        ; pprTraceM "local" (ppr id $$ ppr mb_local_use)
+--        ; pprTraceM "local" (ppr id $$ ppr mb_local_use)
         ; case mb_local_use of
              Just (top_lvl, bind_lvl, use_stage)
                 | thLevel use_stage `notElem` bind_lvl

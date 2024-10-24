@@ -311,7 +311,7 @@ showModMsg dflags recomp (ModuleNode _ lvl mod_summary) =
       then text mod_str
       else hsep $
          [ text (mod_str ++ replicate (max 0 (16 - length mod_str)) ' ')
-         , int lvl
+         , (if lvl == 0 then empty else int lvl)
          , char '('
          , text (op $ msHsFilePath mod_summary) <> char ','
          , message, char ')' ]

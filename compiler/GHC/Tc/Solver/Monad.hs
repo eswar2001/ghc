@@ -1455,10 +1455,10 @@ checkWellStagedInstanceWhat what
     = do
         cur_mod <- extractModule <$> getGblEnv
         gbl_env <- getGblEnv
-        pprTraceM "checkWellStaged" (ppr what)
-        pprTraceM "checkWellStaged" (ppr (tcg_bind_env gbl_env))
-        pprTraceM "checkWellStaged"
-          (ppr (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id)))
+--        pprTraceM "checkWellStaged" (ppr what)
+--        pprTraceM "checkWellStaged" (ppr (tcg_bind_env gbl_env))
+--        pprTraceM "checkWellStaged"
+--          (ppr (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id)))
         return $ (,isLocalId dfun_id)  <$> (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id))
         return $ case  lookupNameEnv (tcg_bind_env gbl_env) (idName dfun_id) of
           -- The instance comes from HPT imported module

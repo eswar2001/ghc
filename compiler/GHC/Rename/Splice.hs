@@ -974,7 +974,7 @@ checkThLocalName name
   = return ()
 
   | otherwise
-  = do  { pprTraceM "checkThLocalName" (ppr name)
+  = do  { --pprTraceM "checkThLocalName" (ppr name)
         ; mb_local_use <- getStageAndBindLevel name
         ; case mb_local_use of {
              Nothing -> return () ;  -- Not a locally-bound thing
@@ -983,9 +983,9 @@ checkThLocalName name
         ; cur_mod <- extractModule <$> getGblEnv
         ; let is_local = nameIsLocalOrFrom cur_mod name
        -- ; checkWellStaged (StageCheckSplice name) bind_lvl use_lvl
-        ; pprTraceM "checkThLocalName" (ppr name <+> ppr bind_lvl
-                                               <+> ppr use_stage
-                                               <+> ppr use_lvl)
+        --; pprTraceM "checkThLocalName" (ppr name <+> ppr bind_lvl
+        --                                       <+> ppr use_stage
+        --                                       <+> ppr use_lvl)
         ; dflags <- getDynFlags
         ; checkCrossStageLifting dflags (StageCheckSplice name) top_lvl is_local bind_lvl use_stage use_lvl name } } }
 
