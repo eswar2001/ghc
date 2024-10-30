@@ -88,7 +88,6 @@ import qualified Data.Set as Set
 import GHC.Types.SrcLoc
 import GHC.Data.FastString (NonDetFastString(..))
 import GHC.Types.Unique.Map
-import GHC.Unit.Module.Graph
 
 
 {-
@@ -476,7 +475,7 @@ addHoleFitDocs fits =
      let name = getName cand in
      do { mb_docs <- if hfIsLcl fit
                      then pure mb_local_docs
-                     else mi_docs <$> loadInterfaceForName msg todoStage name
+                     else mi_docs <$> loadInterfaceForName msg name
         ; case mb_docs of
             { Nothing -> return (Set.insert (nameOrigin name) mods_without_docs, fit)
             ; Just docs -> do

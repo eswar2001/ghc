@@ -76,8 +76,6 @@ import Data.Maybe
 import qualified GHC.LanguageExtensions as LangExt
 import GHC.Data.List.SetOps (assocMaybe)
 
-import GHC.Unit.Module.Graph
-
 -- | To avoid having to manually plumb everything in 'DerivEnv' throughout
 -- various functions in "GHC.Tc.Deriv" and "GHC.Tc.Deriv.Infer", we use 'DerivM', which
 -- is a simple reader around 'TcRn'.
@@ -842,7 +840,7 @@ getDataConFixityFun tc
        ; if nameIsLocalOrFrom this_mod name
          then do { fix_env <- getFixityEnv
                  ; return (lookupFixity fix_env) }
-         else do { iface <- loadInterfaceForName doc todoStage name
+         else do { iface <- loadInterfaceForName doc name
                             -- Should already be loaded!
                  ; return (mi_fix iface . nameOccName) } }
   where

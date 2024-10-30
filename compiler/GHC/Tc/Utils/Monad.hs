@@ -235,7 +235,6 @@ import GHC.Iface.Errors.Types
 import GHC.Iface.Errors.Ppr
 import GHC.Tc.Types.LclEnv
 import GHC.Core.Coercion (isReflCo)
-import GHC.Unit.Module.Graph
 
 {-
 ************************************************************************
@@ -250,14 +249,13 @@ initTc :: HscEnv
        -> HscSource
        -> Bool          -- True <=> retain renamed syntax trees
        -> Module
-       -> ModuleStage
        -> RealSrcSpan
        -> TcM r
        -> IO (Messages TcRnMessage, Maybe r)
                 -- Nothing => error thrown by the thing inside
                 -- (error messages should have been printed already)
 
-initTc hsc_env hsc_src keep_rn_syntax mod stg loc do_this
+initTc hsc_env hsc_src keep_rn_syntax mod loc do_this
  = do { keep_var     <- newIORef emptyNameSet ;
         used_gre_var <- newIORef [] ;
         th_var       <- newIORef False ;
@@ -313,7 +311,6 @@ initTc hsc_env hsc_src keep_rn_syntax mod stg loc do_this
 
                 tcg_mod            = mod,
                 tcg_semantic_mod   = homeModuleInstantiation mhome_unit mod,
-                tcg_module_stage   = stg,
                 tcg_src            = hsc_src,
                 tcg_rdr_env        = emptyGlobalRdrEnv,
                 tcg_bind_env       = emptyNameEnv,
@@ -441,7 +438,6 @@ initTcInteractive :: HscEnv -> TcM a -> IO (Messages TcRnMessage, Maybe a)
 initTcInteractive hsc_env thing_inside
   = initTc hsc_env HsSrcFile False
            (icInteractiveModule (hsc_IC hsc_env))
-           zeroStage
            (realSrcLocSpan interactive_src_loc)
            thing_inside
   where
@@ -2092,7 +2088,7 @@ getStageAndBindLevel name
                 --
                 -- TODO: What happens if someone generates [|| GHC.Magic.dataToTag# ||]
                 then do
-                  --env <- getGlobalRdrEnv
+                  env <- getGlobalRdrEnv
                   pprTrace "NO_LVLS" (ppr name) (return Nothing)
                 else return (Just (TopLevel, lvls, getLclEnvThStage env))
            Just (top_lvl, bind_lvl) -> return (Just (top_lvl, Set.singleton bind_lvl, getLclEnvThStage env)) }
@@ -2192,8 +2188,8 @@ mkIfLclEnv mod loc boot
 -- | Run an 'IfG' (top-level interface monad) computation inside an existing
 -- 'TcRn' (typecheck-renaming monad) computation by initializing an 'IfGblEnv'
 -- based on 'TcGblEnv'.
-initIfaceTcRn :: ModuleStage -> IfG a -> TcRn a
-initIfaceTcRn lvl thing_inside
+initIfaceTcRn :: IfG a -> TcRn a
+initIfaceTcRn thing_inside
   = do  { tcg_env <- getGblEnv
         ; hsc_env <- getTopEnv
           -- bangs to avoid leaking the envs (#19356)
@@ -2204,7 +2200,6 @@ initIfaceTcRn lvl thing_inside
               is_instantiate = fromMaybe False (isHomeUnitInstantiating <$> mhome_unit)
         ; let { if_env = IfGblEnv {
                             if_doc = text "initIfaceTcRn",
-                            if_module_stage = lvl,
                             if_rec_types =
                                 if is_instantiate
                                     then emptyKnotVars
@@ -2219,7 +2214,6 @@ initIfaceLoad :: HscEnv -> IfG a -> IO a
 initIfaceLoad hsc_env do_this
  = do let gbl_env = IfGblEnv {
                         if_doc = text "initIfaceLoad",
-                        if_module_stage = todoStage,
                         if_rec_types = emptyKnotVars
                     }
       initTcRnIf 'i' (hsc_env { hsc_type_env_vars = emptyKnotVars }) gbl_env () do_this
@@ -2231,7 +2225,6 @@ initIfaceLoadModule :: HscEnv -> Module -> IfG a -> IO a
 initIfaceLoadModule hsc_env this_mod do_this
  = do let gbl_env = IfGblEnv {
                         if_doc = text "initIfaceLoadModule",
-                        if_module_stage = todoStage,
                         if_rec_types = readTcRef <$> knotVarsWithout this_mod (hsc_type_env_vars hsc_env)
                     }
       initTcRnIf 'i' hsc_env gbl_env () do_this
@@ -2242,7 +2235,6 @@ initIfaceCheck :: SDoc -> HscEnv -> IfG a -> IO a
 initIfaceCheck doc hsc_env do_this
  = do let gbl_env = IfGblEnv {
                         if_doc = text "initIfaceCheck" <+> doc,
-                        if_module_stage = todoStage,
                         if_rec_types = readTcRef <$> hsc_type_env_vars hsc_env
                     }
       initTcRnIf 'i' hsc_env gbl_env () do_this
@@ -2380,4 +2372,4 @@ localAndImportedCompleteMatches :: CompleteMatches -> HscEnv -> ExternalPackageS
 localAndImportedCompleteMatches tcg_comps hsc_env eps =
      tcg_comps                -- from the current module
   ++ hptCompleteSigs hsc_env  -- from the home package
-  ++ withCollapsedEPS eps_complete_matches (++) eps -- from imports
+  ++ eps_complete_matches eps -- from imports

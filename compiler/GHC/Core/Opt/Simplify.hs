@@ -70,12 +70,12 @@ simplifyExpr :: Logger
 simplifyExpr logger euc opts expr
   = withTiming logger (text "Simplify [expr]") (const ()) $
     do  { eps <- eucEPS euc ;
-        ; let fam_envs = ( withCollapsedEPS eps_fam_inst_env unionFamInstEnv eps
+        ; let fam_envs = ( eps_fam_inst_env eps
                          , extendFamInstEnvList emptyFamInstEnv $ se_fam_inst opts
                          )
               simpl_env = mkSimplEnv (se_mode opts) fam_envs
               top_env_cfg = se_top_env_cfg opts
-              read_eps_rules = withCollapsedEPS eps_rule_base plusUFM <$> eucEPS euc
+              read_eps_rules = eps_rule_base <$> eucEPS euc
               read_ruleenv = updExternalPackageRules emptyRuleEnv <$> read_eps_rules
 
         ; let sz = exprSize expr
@@ -234,12 +234,12 @@ simplifyPgm logger unit_env name_ppr_ctx opts
                 ; !base_rule_env = updLocalRules hpt_rule_env local_rules
 
                 ; read_eps_rules :: IO PackageRuleBase
-                ; read_eps_rules = withCollapsedEPS eps_rule_base plusUFM <$> ueEPS unit_env
+                ; read_eps_rules = eps_rule_base <$> ueEPS unit_env
 
                 ; read_rule_env :: IO RuleEnv
                 ; read_rule_env = updExternalPackageRules base_rule_env <$> read_eps_rules
 
-                ; fam_envs = (withCollapsedEPS eps_fam_inst_env unionFamInstEnv eps, fam_inst_env)
+                ; fam_envs = (eps_fam_inst_env eps, fam_inst_env)
                 ; simpl_env = mkSimplEnv mode fam_envs } ;
 
                 -- Simplify the program

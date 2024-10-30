@@ -690,7 +690,7 @@ hsc_typecheck keep_rn mod_summary mb_rdr_module = do
          do hpm <- case mb_rdr_module of
                     Just hpm -> return hpm
                     Nothing -> hscParse' mod_summary
-            tc_result0 <- tcRnModule' mod_summary todoStage keep_rn' hpm
+            tc_result0 <- tcRnModule' mod_summary keep_rn' hpm
             if hsc_src == HsigFile
                 then do (iface, _) <- liftIO $ hscSimpleIface hsc_env Nothing tc_result0 mod_summary
                         ioMsgMaybe $ hoistTcRnMessage $
@@ -702,9 +702,9 @@ hsc_typecheck keep_rn mod_summary mb_rdr_module = do
     return (tc_result, rn_info)
 
 -- wrapper around tcRnModule to handle safe haskell extras
-tcRnModule' :: ModSummary -> ModuleStage -> Bool -> HsParsedModule
+tcRnModule' :: ModSummary -> Bool -> HsParsedModule
             -> Hsc TcGblEnv
-tcRnModule' sum lvl save_rn_syntax mod = do
+tcRnModule' sum save_rn_syntax mod = do
     hsc_env <- getHscEnv
     dflags  <- getDynFlags
 
@@ -718,7 +718,7 @@ tcRnModule' sum lvl save_rn_syntax mod = do
 
     tcg_res <- {-# SCC "Typecheck-Rename" #-}
                ioMsgMaybe $ hoistTcRnMessage $
-                   tcRnModule hsc_env sum lvl
+                   tcRnModule hsc_env sum
                      save_rn_syntax mod
 
     -- See Note [Safe Haskell Overlapping Instances Implementation]
@@ -1767,7 +1767,7 @@ hscCheckSafe' m l = do
     lookup' m = do
         hsc_env <- getHscEnv
         hsc_eps <- liftIO $ hscEPS hsc_env
-        let pkgIfaceT = withCollapsedEPS eps_PIT plusModuleEnv hsc_eps
+        let pkgIfaceT = eps_PIT hsc_eps
             hug       = hsc_HUG hsc_env
             iface     = lookupIfaceByModule hug pkgIfaceT m
         -- the 'lookupIfaceByModule' method will always fail when calling from GHCi

@@ -76,7 +76,7 @@ import GHC.Utils.Logger
 import GHC.Utils.TmpFs
 
 import GHC.Unit.Env
-import GHC.Unit.External
+import GHC.Unit.External (ExternalPackageState (EPS, eps_iface_bytecode))
 import GHC.Unit.Module
 import GHC.Unit.State as Packages
 
@@ -660,8 +660,8 @@ initLinkDepsOpts hsc_env = opts
                           $ loadInterface msg mod (ImportByUser NotBoot)
 
     ldLoadByteCode mod = do
-      bc_env <- withEPSAt todoStage eps_iface_bytecode <$> (hscEPS hsc_env)
-      sequence (lookupModuleEnv bc_env mod)
+      EPS {eps_iface_bytecode} <- hscEPS hsc_env
+      sequence (lookupModuleEnv eps_iface_bytecode mod)
 
 
 

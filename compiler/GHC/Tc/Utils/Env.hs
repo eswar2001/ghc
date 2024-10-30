@@ -345,7 +345,7 @@ tcGetInstEnvs :: TcM InstEnvs
 -- and the home-pkg inst env (includes module being compiled)
 tcGetInstEnvs = do { eps <- getEps
                    ; env <- getGblEnv
-                   ; return (InstEnvs { ie_global  = withCollapsedEPS eps_inst_env unionInstEnv eps
+                   ; return (InstEnvs { ie_global  = eps_inst_env eps
                                       , ie_local   = tcg_inst_env env
                                       , ie_visible = tcVisibleOrphanMods env }) }
 

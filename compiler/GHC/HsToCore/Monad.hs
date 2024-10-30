@@ -91,7 +91,6 @@ import GHC.Unit.Env
 import GHC.Unit.External
 import GHC.Unit.Module
 import GHC.Unit.Module.ModGuts
-import GHC.Unit.Module.Graph
 
 import GHC.Types.Name.Reader
 import GHC.Types.SourceFile
@@ -368,7 +367,7 @@ initTcDsForSolver thing_inside
                       } = gbl
              DsLclEnv { dsl_loc = loc } = lcl
 
-       ; (msgs, mb_ret) <- liftIO $ initTc hsc_env HsSrcFile False mod todoStage loc $
+       ; (msgs, mb_ret) <- liftIO $ initTc hsc_env HsSrcFile False mod loc $
          updGblEnv (\tc_gbl -> tc_gbl { tcg_fam_inst_env = fam_inst_env
                                       , tcg_rdr_env      = rdr_env }) $
          thing_inside
@@ -384,7 +383,6 @@ mkDsEnvs :: UnitEnv -> Module -> GlobalRdrEnv -> TypeEnv -> FamInstEnv
 mkDsEnvs unit_env mod rdr_env type_env fam_inst_env ptc msg_var cc_st_var
          next_wrapper_num complete_matches
   = let if_genv = IfGblEnv { if_doc       = text "mkDsEnvs"
-                           , if_module_stage = todoStage
   -- Failing tests here are `ghci` and `T11985` if you get this wrong.
   -- this is very very "at a distance" because the reason for this check is that the type_env in interactive
   -- mode is the smushed together of all the interactive modules.
@@ -564,7 +562,7 @@ dsGetFamInstEnvs :: DsM FamInstEnvs
 -- and the home-pkg inst env (includes module being compiled)
 dsGetFamInstEnvs
   = do { eps <- getEps; env <- getGblEnv
-       ; return (withCollapsedEPS eps_fam_inst_env unionFamInstEnv eps, ds_fam_inst_env env) }
+       ; return (eps_fam_inst_env eps, ds_fam_inst_env env) }
 
 dsGetMetaEnv :: DsM (NameEnv DsMetaVal)
 dsGetMetaEnv = do { env <- getLclEnv; return (dsl_meta env) }

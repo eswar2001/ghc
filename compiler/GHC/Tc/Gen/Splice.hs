@@ -165,8 +165,6 @@ import GHC.Parser.HaddockLex (lexHsDoc)
 import GHC.Parser (parseIdentifier)
 import GHC.Rename.Doc (rnHsDoc)
 
-import GHC.Unit.Module.Graph
-
 
 
 {-
@@ -2899,7 +2897,7 @@ reifyModule (TH.Module (TH.PkgName pkgString) (TH.ModName mString)) = do
         return $ TH.ModuleInfo usages
 
       reifyFromIface reifMod = do
-        iface <- loadInterfaceForModule (text "reifying module from TH for" <+> ppr reifMod) todoStage reifMod
+        iface <- loadInterfaceForModule (text "reifying module from TH for" <+> ppr reifMod) reifMod
         let usages = [modToTHMod m | usage <- mi_usages iface,
                                      Just m <- [usageToModule (moduleUnit reifMod) usage] ]
         return $ TH.ModuleInfo usages

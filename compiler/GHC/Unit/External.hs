@@ -3,7 +3,6 @@ module GHC.Unit.External
    , initExternalUnitCache
    , eucEPS
    , ExternalPackageState (..)
-   , ExternalPackageStatePerLevel (..)
    , initExternalPackageState
    , EpsStats(..)
    , addEpsInStats
@@ -14,11 +13,6 @@ module GHC.Unit.External
    , PackageRuleBase
    , PackageCompleteMatches
    , emptyPackageIfaceTable
-
-   , withCollapsedEPS
-   , withStagedEPS
-   , withEPSAt
-   , modifyEPSAt
    )
 where
 
@@ -38,10 +32,8 @@ import GHC.Types.TypeEnv
 import GHC.Types.Unique.DSet
 
 import GHC.Linker.Types (Linkable)
-import GHC.Unit.Module.Graph
 
 import Data.IORef
-import qualified Data.Map as Map
 
 
 type PackageTypeEnv          = TypeEnv
@@ -73,14 +65,7 @@ eucEPS :: ExternalUnitCache -> IO ExternalPackageState
 eucEPS = readIORef . euc_eps
 
 initExternalPackageState :: ExternalPackageState
-initExternalPackageState = ExternalPackageState $ Map.fromList $
-                              map (\n -> (n, initExternalPackageStatePerLevel))
-                                ((take 5 (iterate decModuleStage zeroStage))
-                                ++ [zeroStage]
-                                ++ take 5 (iterate incModuleStage zeroStage))
-
-initExternalPackageStatePerLevel :: ExternalPackageStatePerLevel
-initExternalPackageStatePerLevel = EPS
+initExternalPackageState = EPS
   { eps_is_boot          = emptyInstalledModuleEnv
   , eps_PIT              = emptyPackageIfaceTable
   , eps_free_holes       = emptyInstalledModuleEnv
@@ -104,27 +89,10 @@ initExternalPackageStatePerLevel = EPS
                             }
   }
 
-withStagedEPS :: (ModuleStage -> ExternalPackageStatePerLevel -> a) -> (a -> a -> a) -> ExternalPackageState -> a
-withStagedEPS sel comb (ExternalPackageState m) = foldl1 comb $ map (uncurry sel) (Map.toList m)
-
-
--- View the whole EPS collapsed together (spooky)
-withCollapsedEPS :: (ExternalPackageStatePerLevel -> a) -> (a -> a -> a) -> ExternalPackageState -> a
-withCollapsedEPS sel comb (ExternalPackageState m) = foldl1 comb (map sel (Map.elems m))
-
-withEPSAt :: ModuleStage -> (ExternalPackageStatePerLevel -> a) -> ExternalPackageState -> a
-withEPSAt n sel (ExternalPackageState m) = sel (m Map.! n)
-
-modifyEPSAt :: ModuleStage -> (ExternalPackageStatePerLevel -> ExternalPackageStatePerLevel)
-            -> ExternalPackageState
-            -> ExternalPackageState
-modifyEPSAt n k (ExternalPackageState t) = ExternalPackageState (Map.adjust k n t)
-
-data ExternalPackageState = ExternalPackageState (Map.Map ModuleStage ExternalPackageStatePerLevel)
 
 -- | Information about other packages that we have slurped in by reading
 -- their interface files
-data ExternalPackageStatePerLevel
+data ExternalPackageState
   = EPS {
         eps_is_boot :: !(InstalledModuleEnv ModuleNameWithIsBoot),
                 -- ^ In OneShot mode (only), home-package modules

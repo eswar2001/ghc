@@ -79,7 +79,6 @@ import qualified Data.List as List
 import qualified Data.List.NonEmpty as NE
 import Data.Foldable
 import Data.Maybe
-import GHC.Unit.Module.Graph
 
 
 {-
@@ -526,9 +525,7 @@ warnIfDeclDeprecated gre@(GRE { gre_imp = iss })
   = do { dflags <- getDynFlags
        ; when (wopt_any_custom dflags) $
                    -- See Note [Handling of deprecations]
-         -- MP: This implementation is wrong, we should not consult the interface
-         -- directly here.
-         do { iface <- loadInterfaceForName doc todoStage name
+         do { iface <- loadInterfaceForName doc name
             ; case lookupImpDeclDeprec iface gre of
                 Just deprText -> addDiagnostic $
                   TcRnPragmaWarning
@@ -571,8 +568,7 @@ warnIfExportDeprecated gre@(GRE { gre_imp = iss })
     process_import_spec :: ImportSpec -> RnM (Maybe (ModuleName, WarningTxt GhcRn))
     process_import_spec is = do
       let mod = is_mod $ is_decl is
-      -- Again, do not look directly for interfaces here
-      iface <- loadInterfaceForModule doc todoStage mod
+      iface <- loadInterfaceForModule doc mod
       let mb_warn_txt = mi_export_warn_fn (mi_final_exts iface) name
       return $ (moduleName mod, ) <$> mb_warn_txt
 

@@ -59,8 +59,6 @@ import Data.Function ( on )
 import qualified GHC.LanguageExtensions  as LangExt
 import GHC.Unit.Env (unitEnv_hpts)
 
-import GHC.Unit.Module.Graph
-
 {- Note [The type family instance consistency story]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -253,7 +251,7 @@ checkFamInstConsistency directlyImpMods
        ; let { -- Fetch the iface of a given module.  Must succeed as
                -- all directly imported modules must already have been loaded.
                modIface mod =
-                 case lookupIfaceByModule hug (withCollapsedEPS eps_PIT plusModuleEnv eps) mod of
+                 case lookupIfaceByModule hug (eps_PIT eps) mod of
                    Nothing    -> panicDoc "FamInst.checkFamInstConsistency"
                                           (ppr mod $$ ppr hug)
                    Just iface -> iface
@@ -354,10 +352,10 @@ checkFamInstConsistency directlyImpMods
 getFamInsts :: ModuleEnv FamInstEnv -> Module -> TcM FamInstEnv
 getFamInsts hpt_fam_insts mod
   | Just env <- lookupModuleEnv hpt_fam_insts mod = return env
-  | otherwise = do { _ <- initIfaceTcRn todoStage (loadSysInterface doc mod)
+  | otherwise = do { _ <- initIfaceTcRn (loadSysInterface doc mod)
                    ; eps <- getEps
                    ; return (expectJust "checkFamInstConsistency" $
-                             lookupModuleEnv (withCollapsedEPS eps_mod_fam_inst_env plusModuleEnv eps) mod) }
+                             lookupModuleEnv (eps_mod_fam_inst_env eps) mod) }
   where
     doc = ppr mod <+> text "is a family-instance module"
 
@@ -515,7 +513,7 @@ loadDependentFamInstModules fam_insts
               | otherwise       = True
             home_fams_only = all (nameIsHomePackage this_mod . fi_fam) fam_insts
 
-      ; loadModuleInterfaces (text "Loading family-instance modules") todoStage $
+      ; loadModuleInterfaces (text "Loading family-instance modules") $
         filter want_module (imp_finsts imports) }
 
 {- Note [Home package family instances]
@@ -560,7 +558,7 @@ addLocalFamInst (home_fie, my_fis) fam_inst
            -- by the current module, rather than every instance
            -- we've ever seen. Fixing this is part of #13102.
        ; eps <- getEps
-       ; let inst_envs = (withCollapsedEPS eps_fam_inst_env unionFamInstEnv eps, home_fie)
+       ; let inst_envs = (eps_fam_inst_env eps, home_fie)
              home_fie' = extendFamInstEnv home_fie fam_inst
 
            -- Check for conflicting instance decls and injectivity violations
@@ -900,4 +898,4 @@ tcGetFamInstEnvs :: TcM FamInstEnvs
 -- and the home-pkg inst env (includes module being compiled)
 tcGetFamInstEnvs
   = do { eps <- getEps; env <- getGblEnv
-       ; return (withCollapsedEPS eps_fam_inst_env unionFamInstEnv eps, tcg_fam_inst_env env) }
+       ; return (eps_fam_inst_env eps, tcg_fam_inst_env env) }

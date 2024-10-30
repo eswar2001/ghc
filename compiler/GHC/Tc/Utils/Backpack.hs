@@ -90,8 +90,6 @@ import Data.List (find)
 import GHC.Iface.Errors.Types
 import Data.Function ((&))
 
-import GHC.Unit.Module.Graph
-
 checkHsigDeclM :: ModIface -> TyThing -> TyThing -> TcRn ()
 checkHsigDeclM sig_iface sig_thing real_thing = do
     let name = getName real_thing
@@ -347,7 +345,6 @@ tcRnCheckUnit hsc_env uid =
           HsigFile -- bogus
           False
           (mainModIs (hsc_HUE hsc_env))
-          todoStage
           (realSrcLocSpan (mkRealSrcLoc (fsLit loc_str) 0 0)) -- bogus
     $ checkUnit uid
   where
@@ -365,7 +362,7 @@ tcRnMergeSignatures hsc_env hpm orig_tcg_env iface =
   withTiming logger
              (text "Signature merging" <+> brackets (ppr this_mod))
              (const ()) $
-  initTc hsc_env HsigFile False this_mod todoStage real_loc $
+  initTc hsc_env HsigFile False this_mod real_loc $
     mergeSignatures hpm orig_tcg_env iface
  where
   logger   = hsc_logger hsc_env
@@ -759,7 +756,7 @@ mergeSignatures
     --      2. It typechecks each iface individually, but with their 'Name's
     --      resolving to the merged type_env from (1).
     -- See typecheckIfacesForMerging for more details.
-    (type_env, detailss) <- initIfaceTcRn todoStage $
+    (type_env, detailss) <- initIfaceTcRn $
                             typecheckIfacesForMerging inner_mod ifaces type_env_var
     let infos = zip ifaces detailss
 
@@ -915,7 +912,7 @@ tcRnInstantiateSignature hsc_env this_mod real_loc =
    withTiming logger
               (text "Signature instantiation"<+>brackets (ppr this_mod))
               (const ()) $
-   initTc hsc_env HsigFile False this_mod todoStage real_loc $ instantiateSignature
+   initTc hsc_env HsigFile False this_mod real_loc $ instantiateSignature
   where
    logger = hsc_logger hsc_env
 
@@ -947,7 +944,7 @@ checkImplements impl_mod req_mod@(Module uid mod_name) = do
     -- when we verify that all instances are checked (see #12945), and so that
     -- when we eventually write out the interface we record appropriate
     -- dependency information.
-    impl_iface <- initIfaceTcRn todoStage $
+    impl_iface <- initIfaceTcRn $
         loadSysInterface (text "checkImplements 1") impl_mod
     let impl_gr = mkGlobalRdrEnv
                     (gresFromAvails hsc_env Nothing (mi_exports impl_iface))
@@ -955,7 +952,7 @@ checkImplements impl_mod req_mod@(Module uid mod_name) = do
 
     -- Load all the orphans, so the subsequent 'checkHsigIface' sees
     -- all the instances it needs to
-    loadModuleInterfaces (text "Loading orphan modules (from implementor of hsig)") todoStage
+    loadModuleInterfaces (text "Loading orphan modules (from implementor of hsig)")
                          (dep_orphs (mi_deps impl_iface))
 
     let avails = calculateAvails home_unit other_home_units
@@ -1006,7 +1003,7 @@ checkImplements impl_mod req_mod@(Module uid mod_name) = do
 
     -- STEP 5: ...and typecheck it.  (Note that in both cases, the nsubst
     -- lets us determine how top-level identifiers should be handled.)
-    sig_details <- initIfaceTcRn todoStage $ typecheckIfaceForInstantiate nsubst sig_iface
+    sig_details <- initIfaceTcRn $ typecheckIfaceForInstantiate nsubst sig_iface
 
     -- STEP 6: Check that it's sufficient
     tcg_env <- getGblEnv

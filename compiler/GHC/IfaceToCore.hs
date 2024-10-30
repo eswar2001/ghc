@@ -138,7 +138,6 @@ import qualified Data.List.NonEmpty as NE
 import GHC.Builtin.Names (ioTyConName, rOOT_MAIN)
 import GHC.Iface.Errors.Types
 import Language.Haskell.Syntax.Extension (NoExtField (NoExtField))
-import GHC.Unit.Module.Graph
 
 {-
 This module takes
@@ -597,8 +596,7 @@ tcHiBootIface hsc_src mod
 
         ; case read_result of {
             Succeeded (iface, _path) ->
-              -- Boot file imports only allowed at zero stage?
-              do { tc_iface <- initIfaceTcRn todoStage $ typecheckIface iface
+              do { tc_iface <- initIfaceTcRn $ typecheckIface iface
                  ; return $ SelfBoot { sb_mds = tc_iface } } ;
             Failed err               ->
 
@@ -610,7 +608,7 @@ tcHiBootIface hsc_src mod
         -- a SOURCE import) or that our hi-boot file has mysteriously
         -- disappeared.
     do  { eps <- getEps
-        ; case lookupInstalledModuleEnv (withEPSAt todoStage eps_is_boot eps) (toUnitId <$> mod) of
+        ; case lookupInstalledModuleEnv (eps_is_boot eps) (toUnitId <$> mod) of
             -- The typical case
             Nothing -> return NoSelfBoot
             -- error cases
@@ -1060,9 +1058,8 @@ tc_iface_decl_fingerprint ignore_prags (_version, decl)
 
 bumpDeclStats :: Name -> IfL ()         -- Record that one more declaration has actually been used
 bumpDeclStats name
-  = do  { lvl <- if_module_stage <$> getGblEnv
-        ; traceIf (text "Loading decl for" <+> ppr name <+> ppr lvl)
-        ; updateEps_ $ modifyEPSAt lvl (\eps -> let stats = eps_stats eps
+  = do  { traceIf (text "Loading decl for" <+> ppr name)
+        ; updateEps_ (\eps -> let stats = eps_stats eps
                               in eps { eps_stats = stats { n_decls_out = n_decls_out stats + 1 } })
         }
 

@@ -16,7 +16,7 @@ import GHC.Types.TyThing (tyThingParent_maybe)
 import GHC.Types.TyThing.Ppr (pprTyThing)
 import GHC.Types.Name (nameOccName, nameModule_maybe, stableNameCmp)
 import GHC.Types.Name.Occurrence (OccName, mkDataOcc, mkVarOcc, occNameString)
-import GHC.Unit.External (eps_inst_env, withCollapsedEPS)
+import GHC.Unit.External (eps_inst_env)
 import GHC.Iface.Syntax (ShowSub(..), ShowHowMuch(..), AltPpr(..))
 import GHC.Iface.Type (ShowForAllFlag(..))
 
@@ -236,7 +236,7 @@ reportInstances :: Ghc SDoc
 reportInstances = do
     hsc_env <- getSession
     eps <- liftIO $ hscEPS hsc_env
-    let instances = withCollapsedEPS eps_inst_env undefined eps
+    let instances = eps_inst_env eps
     return $ vcat $
         [ text ""
         , text ""

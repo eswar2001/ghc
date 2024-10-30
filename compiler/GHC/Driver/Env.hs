@@ -320,7 +320,7 @@ prepareAnnotations hsc_env mb_guts = do
         -- entries regardless of dependency ordering.
         get_mod mg = (moduleUnitId (mg_module mg), zeroStage, GWIB (moduleName (mg_module mg)) NotBoot)
         home_pkg_anns  = (mkAnnEnv . hptAnns hsc_env) $ fmap get_mod mb_guts
-        other_pkg_anns = withCollapsedEPS eps_ann_env plusAnnEnv eps
+        other_pkg_anns = eps_ann_env eps
         ann_env        = foldl1' plusAnnEnv $ catMaybes [mb_this_module_anns,
                                                          Just home_pkg_anns,
                                                          Just other_pkg_anns]
@@ -334,7 +334,7 @@ prepareAnnotations hsc_env mb_guts = do
 lookupType :: HscEnv -> Name -> IO (Maybe TyThing)
 lookupType hsc_env name = do
    eps <- liftIO $ hscEPS hsc_env
-   let pte = withCollapsedEPS eps_PTE plusNameEnv eps
+   let pte = eps_PTE eps
    return $ lookupTypeInPTE hsc_env pte name
 
 lookupTypeInPTE :: HscEnv -> PackageTypeEnv -> Name -> Maybe TyThing

@@ -255,7 +255,7 @@ initRuleEnv guts
        ; return (mkRuleEnv guts eps_rules hpt_rules) }
 
 getExternalRuleBase :: CoreM RuleBase
-getExternalRuleBase = withCollapsedEPS eps_rule_base plusNameEnv <$> get_eps
+getExternalRuleBase = eps_rule_base <$> get_eps
 
 getNamePprCtx :: CoreM NamePprCtx
 getNamePprCtx = read cr_name_ppr_ctx
@@ -298,7 +298,7 @@ getInteractiveContext :: CoreM InteractiveContext
 getInteractiveContext = hsc_IC <$> getHscEnv
 
 getPackageFamInstEnv :: CoreM PackageFamInstEnv
-getPackageFamInstEnv = withCollapsedEPS eps_fam_inst_env undefined <$> get_eps
+getPackageFamInstEnv = eps_fam_inst_env <$> get_eps
 
 get_eps :: CoreM ExternalPackageState
 get_eps = do

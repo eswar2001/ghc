@@ -119,7 +119,6 @@ import Data.List        ( find, partition, groupBy, sortBy )
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Semigroup as Semi
 import System.IO.Unsafe ( unsafePerformIO )
-import GHC.Unit.Module.Graph
 
 {-
 *********************************************************
@@ -1954,7 +1953,7 @@ lookupQualifiedNameGHCi fos rdr_name
       , is_ghci
       , gopt Opt_ImplicitImportQualified dflags   -- Enables this GHCi behaviour
       , not (safeDirectImpsReq dflags)            -- See Note [Safe Haskell and GHCi]
-      = do { res <- loadSrcInterface_maybe doc mod_name NotBoot NoPkgQual zeroStage
+      = do { res <- loadSrcInterface_maybe doc mod_name NotBoot NoPkgQual
            ; case res of
                 Succeeded iface
                   -> do { hsc_env <- getTopEnv
