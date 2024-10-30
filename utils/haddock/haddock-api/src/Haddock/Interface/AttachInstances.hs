@@ -65,6 +65,8 @@ import Haddock.Convert
 import Haddock.GhcUtils (typeNames)
 import Haddock.Types
 
+import GHC.Unit.Module.Graph
+
 type ExportedNames = Set.Set Name
 type Modules = Set.Set Module
 type ExportInfo = (ExportedNames, Modules)
@@ -101,7 +103,7 @@ attachInstances expInfo ifaces instIfaceMap isOneShot = do
       -- In one shot mode we don't want to load anything more than is already loaded
       unless isOneShot $ do
         let doc = text "Need interface for haddock"
-        initIfaceTcRn $ mapM_ (loadSysInterface doc) mods_to_load
+        initIfaceTcRn todoStage $ mapM_ (loadSysInterface doc) mods_to_load
       cls_env@InstEnvs{ie_global, ie_local} <- tcGetInstEnvs
       fam_env@(pkg_fie, home_fie) <- tcGetFamInstEnvs
       -- We use Data.Sequence.Seq because we are creating left associated

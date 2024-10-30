@@ -1436,7 +1436,7 @@ getPackageModuleInfo hsc_env mdl
         iface <- hscGetModuleInterface hsc_env mdl
         let
             avails = mi_exports iface
-            pte    = eps_PTE eps
+            pte    = withCollapsedEPS eps_PTE plusNameEnv eps
             tys    = [ ty | name <- concatMap availNames avails,
                             Just ty <- [lookupTypeEnv pte name] ]
 
@@ -1562,7 +1562,7 @@ getNameToInstancesIndex visible_mods mods_to_load = do
            Nothing -> loadUnqualIfaces hsc_env (hsc_IC hsc_env)
            Just mods ->
              let doc = text "Need interface for reporting instances in scope"
-             in initIfaceTcRn $ mapM_ (loadSysInterface doc) mods
+             in initIfaceTcRn todoStage $ mapM_ (loadSysInterface doc) mods
 
        ; InstEnvs {ie_global, ie_local} <- tcGetInstEnvs
        ; let visible_mods' = mkModuleSet visible_mods

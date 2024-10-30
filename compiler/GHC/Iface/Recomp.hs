@@ -85,6 +85,8 @@ import Data.Bifunctor
 import GHC.Iface.Errors.Ppr
 import GHC.Types.PkgQual
 
+import GHC.Unit.Module.Graph
+
 {-
   -----------------------------------------------
           Recompilation checking
@@ -409,7 +411,7 @@ checkVersions hsc_env mod_summary iface
        -- case we'll compile the module from scratch anyhow).
 
        when (isOneShot (ghcMode (hsc_dflags hsc_env))) $ do {
-          ; updateEps_ $ \eps  -> eps { eps_is_boot = mkModDeps $ dep_boot_mods (mi_deps iface) }
+          ; updateEps_ $ modifyEPSAt todoStage $ \eps  -> eps { eps_is_boot = mkModDeps $ dep_boot_mods (mi_deps iface) }
        }
        ; recomp <- checkList [checkModUsage (hsc_FC hsc_env) u
                              | u <- mi_usages iface]
@@ -1620,7 +1622,7 @@ mkHashFun hsc_env eps name
       home_unit = hsc_home_unit hsc_env
       dflags = hsc_dflags hsc_env
       hpt = hsc_HUG hsc_env
-      pit = eps_PIT eps
+      pit = withEPSAt todoStage eps_PIT eps
       ctx = initSDocContext dflags defaultUserStyle
       occ = nameOccName name
       orig_mod = nameModule name

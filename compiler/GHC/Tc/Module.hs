@@ -198,17 +198,18 @@ import Data.Traversable ( for )
 -- | Top level entry point for typechecker and renamer
 tcRnModule :: HscEnv
            -> ModSummary
+           -> ModuleStage
            -> Bool              -- True <=> save renamed syntax
            -> HsParsedModule
            -> IO (Messages TcRnMessage, Maybe TcGblEnv)
 
-tcRnModule hsc_env mod_sum save_rn_syntax
+tcRnModule hsc_env mod_sum lvl save_rn_syntax
    parsedModule@HsParsedModule {hpm_module= L loc this_module}
  | RealSrcSpan real_loc _ <- loc
  = withTiming logger
               (text "Renamer/typechecker"<+>brackets (ppr this_mod))
               (const ()) $
-   initTc hsc_env hsc_src save_rn_syntax this_mod real_loc $
+   initTc hsc_env hsc_src save_rn_syntax this_mod lvl real_loc $
           withTcPlugins hsc_env $
           withDefaultingPlugins hsc_env $
           withHoleFitPlugins hsc_env $
@@ -471,11 +472,13 @@ tcRnImports hsc_env import_decls
                 -- visible to loadHiBootInterface in tcRnSrcDecls,
                 -- and any other incrementally-performed imports
               ; when (isOneShot (ghcMode (hsc_dflags hsc_env))) $ do {
-                  updateEps_ $ \eps  -> eps { eps_is_boot = imp_boot_mods imports }
+                  updateEps_ $ modifyEPSAt todoStage $ \eps  -> eps { eps_is_boot = imp_boot_mods imports }
                }
 
                 -- Type check the imported default declarations
-        ; tc_defaults <- initIfaceTcRn (tcIfaceDefaults this_mod defaults)
+                -- MP: Looks like a wrong implementation.
+                -- We should not call `initIfaceTcRn` here.
+        ; tc_defaults <- initIfaceTcRn todoStage (tcIfaceDefaults this_mod defaults)
                 -- Update the gbl env
         ; updGblEnv ( \ gbl ->
             gbl {
@@ -507,7 +510,7 @@ tcRnImports hsc_env import_decls
                 -- modules until we either try to use the instances they
                 -- define, or define our own family instances, at which
                 -- point we need to check them for consistency.)
-        ; loadModuleInterfaces (text "Loading orphan modules")
+        ; loadModuleInterfaces (text "Loading orphan modules") todoStage
                                (filter (/= this_mod) (imp_orphs imports))
 
                 -- Check type-family consistency between imports.
@@ -2079,7 +2082,7 @@ runTcInteractive hsc_env thing_inside
        ; let getOrphans m mb_pkg = fmap (\iface -> mi_module iface
                                           : dep_orphs (mi_deps iface))
                                  (loadSrcInterface (text "runTcInteractive") m
-                                                   NotBoot mb_pkg)
+                                                   NotBoot mb_pkg todoStage)
 
        ; !orphs <- fmap (force . concat) . forM (ic_imports icxt) $ \i ->
             case i of                   -- force above: see #15111
@@ -2842,7 +2845,7 @@ externaliseAndTidyId this_mod id
 getModuleInterface :: HscEnv -> Module -> IO (Messages TcRnMessage, Maybe ModIface)
 getModuleInterface hsc_env mod
   = runTcInteractive hsc_env $
-    loadModuleInterface (text "getModuleInterface") mod
+    loadModuleInterface (text "getModuleInterface") todoStage mod
 
 tcRnLookupRdrName :: HscEnv -> LocatedN RdrName
                   -> IO (Messages TcRnMessage, Maybe [Name])
@@ -2940,7 +2943,7 @@ loadUnqualIfaces :: HscEnv -> InteractiveContext -> TcM ()
 -- This is so that we can accurately report the instances for
 -- something
 loadUnqualIfaces hsc_env ictxt
-  = initIfaceTcRn $
+  = initIfaceTcRn todoStage $
     mapM_ (loadSysInterface doc) (moduleSetElts (mkModuleSet unqual_mods))
   where
     home_unit = hsc_home_unit hsc_env

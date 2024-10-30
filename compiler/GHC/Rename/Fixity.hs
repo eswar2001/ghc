@@ -34,6 +34,7 @@ import GHC.Utils.Outputable
 import GHC.Data.Maybe
 
 import GHC.Rename.Unbound
+import GHC.Unit.Module.Graph
 
 {-
 *********************************************************
@@ -182,7 +183,8 @@ lookupFixityRn_help name
       --
       -- loadInterfaceForName will find B.hi even if B is a hidden module,
       -- and that's what we want.
-      = do { iface <- loadInterfaceForName doc name
+      -- MP: Do not look directly for interface here either.
+      = do { iface <- loadInterfaceForName doc todoStage name
            ; let mb_fix = mi_fix_fn (mi_final_exts iface) occ
            ; let msg = case mb_fix of
                             Nothing ->

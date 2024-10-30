@@ -1046,7 +1046,7 @@ addLocalInst (home_ie, my_insts) ispec
                  | isGHCi    = deleteFromInstEnv home_ie ispec
                  | otherwise = home_ie
 
-               global_ie = eps_inst_env eps
+               global_ie = withCollapsedEPS eps_inst_env unionInstEnv eps
                inst_envs = InstEnvs { ie_global  = global_ie
                                     , ie_local   = home_ie'
                                     , ie_visible = tcVisibleOrphanMods tcg_env }

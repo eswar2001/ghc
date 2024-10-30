@@ -185,6 +185,7 @@ import Data.Dynamic  ( Dynamic )
 import Data.Map ( Map )
 import Data.Typeable ( TypeRep )
 import Data.Maybe    ( mapMaybe )
+import GHC.Unit.Module.Graph
 
 -- | The import specification as written by the user, including
 -- the list of explicitly imported names. Used in 'ModIface' to
@@ -348,6 +349,8 @@ data IfGblEnv
         -- Some information about where this environment came from;
         -- useful for debugging.
         if_doc :: SDoc,
+        -- If we need to load an interface, look in this stage.
+        if_module_stage :: ModuleStage,
         -- The type environment for the module being compiled,
         -- in case the interface refers back to it via a reference that
         -- was originally a hi-boot file.
@@ -469,6 +472,7 @@ data TcGblEnv
   = TcGblEnv {
         tcg_mod     :: Module,         -- ^ Module being compiled
         tcg_semantic_mod :: Module,    -- ^ If a signature, the backing module
+        tcg_module_stage :: ModuleStage, -- ^ What is the stage of the current module being compiled?
             -- See also Note [Identity versus semantic module]
         tcg_src     :: HscSource,
           -- ^ What kind of module (regular Haskell, hs-boot, hsig)

@@ -109,6 +109,8 @@ import qualified Data.Set as S
 import System.FilePath  ((</>))
 import System.IO
 
+import GHC.Unit.Module.Graph
+
 {-
 ************************************************************************
 *                                                                      *
@@ -370,7 +372,14 @@ rnImportDecl this_mod
            | otherwise  -> addDiagnostic (TcRnNoExplicitImportList imp_mod_name)
 
 
-    iface <- loadSrcInterface doc imp_mod_name want_boot pkg_qual
+    cur_lvl <- tcg_module_stage <$> getGblEnv
+    let offset_lvl =
+            case import_stage of
+              NormalStage -> cur_lvl
+              QuoteStage -> incModuleStage cur_lvl
+              SpliceStage -> decModuleStage cur_lvl
+
+    iface <- loadSrcInterface doc imp_mod_name want_boot pkg_qual offset_lvl
 
     -- Compiler sanity check: if the import didn't say
     -- {-# SOURCE #-} we should not get a hi-boot file
@@ -2017,7 +2026,7 @@ getMinimalImports ie_decls
       = do { let ImportDecl { ideclName    = L _ mod_name
                             , ideclSource  = is_boot
                             , ideclPkgQual = pkg_qual } = decl
-           ; iface <- loadSrcInterface doc mod_name is_boot pkg_qual
+           ; iface <- loadSrcInterface doc mod_name is_boot pkg_qual todoStage
            ; let used_avails = gresToAvailInfo used_gres
            ; lies <- map (L l) <$> concatMapM (to_ie rdr_env iface) used_avails
            ; return (L l (decl { ideclImportList = Just (Exactly, L (l2l l) lies) })) }

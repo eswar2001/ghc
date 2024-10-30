@@ -77,6 +77,8 @@ import Data.List (unzip4)
 import GHC.Iface.Errors.Ppr
 import GHC.Driver.Monad
 
+import GHC.Unit.Module.Graph
+
 {- Note [Timing of plugin initialization]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -230,7 +232,7 @@ loadPlugin' occ_name plugin_name hsc_env mod_name
 forceLoadModuleInterfaces :: HscEnv -> SDoc -> [Module] -> IO ()
 forceLoadModuleInterfaces hsc_env doc modules
     = (initTcInteractive hsc_env $
-       initIfaceTcRn $
+       initIfaceTcRn todoStage $
        mapM_ (loadPluginInterface doc) modules)
       >> return ()
 
@@ -354,7 +356,7 @@ lookupRdrNameInModuleForPlugins hsc_env mod_name rdr_name = do
         Found _ mod -> do
             -- Find the exports of the module
             (_, mb_iface) <- initTcInteractive hsc_env $
-                             initIfaceTcRn $
+                             initIfaceTcRn todoStage $
                              loadPluginInterface doc mod
             case mb_iface of
                 Just iface -> do

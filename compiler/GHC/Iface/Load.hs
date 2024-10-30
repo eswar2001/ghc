@@ -118,6 +118,7 @@ import GHC.Driver.Env.KnotVars
 import {-# source #-} GHC.Driver.Main (loadIfaceByteCode)
 import GHC.Iface.Errors.Types
 import Data.Function ((&))
+import GHC.Unit.Module.Graph
 
 {-
 ************************************************************************
@@ -159,11 +160,11 @@ tcImportDecl_maybe :: Name -> TcM (MaybeErr IfaceMessage TyThing)
 tcImportDecl_maybe name
   | Just thing <- wiredInNameTyThing_maybe name
   = do  { when (needWiredInHomeIface thing)
-               (initIfaceTcRn (loadWiredInHomeIface name))
+               (initIfaceTcRn todoStage (loadWiredInHomeIface name))
                 -- See Note [Loading instances for wired-in things]
         ; return (Succeeded thing) }
   | otherwise
-  = initIfaceTcRn (importDecl name)
+  = initIfaceTcRn todoStage (importDecl name)
 
 importDecl :: Name -> IfM lcl (MaybeErr IfaceMessage TyThing)
 -- Get the TyThing for this Name from an interface file
@@ -183,11 +184,12 @@ importDecl name
 
         -- Now look it up again; this time we should find it
         { eps <- getEps
-        ; case lookupTypeEnv (eps_PTE eps) name of
+        ; lvl <- if_module_stage <$> getGblEnv
+        ; case lookupTypeEnv (withEPSAt lvl eps_PTE eps) name of
             Just thing -> return $ Succeeded thing
             Nothing    -> return $ Failed $
               Can'tFindNameInInterface name
-              (filter is_interesting $ nonDetNameEnvElts $ eps_PTE eps)
+              (filter is_interesting $ withEPSAt lvl (nonDetNameEnvElts . eps_PTE) eps)
     }}}
   where
     nd_doc = text "Need decl for" <+> ppr name
@@ -242,7 +244,7 @@ checkWiredInTyCon tc
         ; liftIO $ trace_if logger (text "checkWiredInTyCon" <+> ppr tc_name $$ ppr mod)
         ; assert (isExternalName tc_name )
           when (mod /= nameModule tc_name)
-               (initIfaceTcRn (loadWiredInHomeIface tc_name))
+               (initIfaceTcRn todoStage (loadWiredInHomeIface tc_name))
                 -- Don't look for (non-existent) Float.hi when
                 -- compiling Float.hs, which mentions Float of course
                 -- A bit yukky to call initIfaceTcRn here
@@ -289,10 +291,11 @@ loadSrcInterface :: SDoc
                  -> ModuleName
                  -> IsBootInterface     -- {-# SOURCE #-} ?
                  -> PkgQual             -- "package", if any
+                 -> ModuleStage -- ^ Module stage
                  -> RnM ModIface
 
-loadSrcInterface doc mod want_boot maybe_pkg
-  = do { res <- loadSrcInterface_maybe doc mod want_boot maybe_pkg
+loadSrcInterface doc mod want_boot maybe_pkg lvl
+  = do { res <- loadSrcInterface_maybe doc mod want_boot maybe_pkg lvl
        ; case res of
            Failed    err ->
              failWithTc $
@@ -308,9 +311,10 @@ loadSrcInterface_maybe :: SDoc
                        -> ModuleName
                        -> IsBootInterface     -- {-# SOURCE #-} ?
                        -> PkgQual             -- "package", if any
+                       -> ModuleStage -- ^ Stage of module to load
                        -> RnM (MaybeErr MissingInterfaceError ModIface)
 
-loadSrcInterface_maybe doc mod want_boot maybe_pkg
+loadSrcInterface_maybe doc mod want_boot maybe_pkg lvl
   -- We must first find which Module this import refers to.  This involves
   -- calling the Finder, which as a side effect will search the filesystem
   -- and create a ModLocation.  If successful, loadIface will read the
@@ -319,7 +323,7 @@ loadSrcInterface_maybe doc mod want_boot maybe_pkg
   = do hsc_env <- getTopEnv
        res <- liftIO $ findImportedModule hsc_env mod maybe_pkg
        case res of
-           Found _ mod -> initIfaceTcRn $ loadInterface doc mod (ImportByUser want_boot)
+           Found _ mod -> initIfaceTcRn lvl $ loadInterface doc mod (ImportByUser want_boot)
            -- TODO: Make sure this error message is good
            err         -> return (Failed (cannotFindModule hsc_env mod err))
 
@@ -327,37 +331,37 @@ loadSrcInterface_maybe doc mod want_boot maybe_pkg
 -- rare operation, but in particular it is used to load orphan modules
 -- in order to pull their instances into the global package table and to
 -- handle some operations in GHCi).
-loadModuleInterface :: SDoc -> Module -> TcM ModIface
-loadModuleInterface doc mod = initIfaceTcRn (loadSysInterface doc mod)
+loadModuleInterface :: SDoc -> ModuleStage -> Module -> TcM ModIface
+loadModuleInterface doc lvl mod = initIfaceTcRn lvl (loadSysInterface doc mod)
 
 -- | Load interfaces for a collection of modules.
-loadModuleInterfaces :: SDoc -> [Module] -> TcM ()
-loadModuleInterfaces doc mods
+loadModuleInterfaces :: SDoc -> ModuleStage -> [Module] -> TcM ()
+loadModuleInterfaces doc lvl mods
   | null mods = return ()
-  | otherwise = initIfaceTcRn (mapM_ load mods)
+  | otherwise = initIfaceTcRn lvl (mapM_ load mods)
   where
     load mod = loadSysInterface (doc <+> parens (ppr mod)) mod
 
 -- | Loads the interface for a given Name.
 -- Should only be called for an imported name;
 -- otherwise loadSysInterface may not find the interface
-loadInterfaceForName :: SDoc -> Name -> TcRn ModIface
-loadInterfaceForName doc name
+loadInterfaceForName :: SDoc -> ModuleStage -> Name -> TcRn ModIface
+loadInterfaceForName doc lvl name
   = do { when debugIsOn $  -- Check pre-condition
          do { this_mod <- getModule
             ; massertPpr (not (nameIsLocalOrFrom this_mod name)) (ppr name <+> parens doc) }
       ; assertPpr (isExternalName name) (ppr name) $
-        initIfaceTcRn $ loadSysInterface doc (nameModule name) }
+        initIfaceTcRn lvl $ loadSysInterface doc (nameModule name) }
 
 -- | Loads the interface for a given Module.
-loadInterfaceForModule :: SDoc -> Module -> TcRn ModIface
-loadInterfaceForModule doc m
+loadInterfaceForModule :: SDoc -> ModuleStage -> Module -> TcRn ModIface
+loadInterfaceForModule doc lvl m
   = do
     -- Should not be called with this module
     when debugIsOn $ do
       this_mod <- getModule
       massertPpr (this_mod /= m) (ppr m <+> parens doc)
-    initIfaceTcRn $ loadSysInterface doc m
+    initIfaceTcRn lvl $ loadSysInterface doc m
 
 {-
 *********************************************************
@@ -436,19 +440,20 @@ loadInterface doc_str mod from
         {       -- Read the state
           (eps,hug) <- getEpsAndHug
         ; gbl_env <- getGblEnv
-
-        ; liftIO $ trace_if logger (text "Considering whether to load" <+> ppr mod <+> ppr from)
-
-                -- Check whether we have the interface already
         ; hsc_env <- getTopEnv
         ; let mhome_unit = ue_homeUnit (hsc_unit_env hsc_env)
-        ; case lookupIfaceByModule hug (eps_PIT eps) mod of {
+        ; let lvl = if_module_stage gbl_env
+
+        ; liftIO $ trace_if logger (text "Considering whether to load" <+> ppr mod <+> ppr from <+> ppr lvl)
+
+                -- Check whether we have the interface already
+        ; case withEPSAt lvl (lookupIfaceByModule hug . eps_PIT) eps $ mod of {
             Just iface
                 -> return (Succeeded iface) ;   -- Already loaded
             _ -> do {
 
         -- READ THE MODULE IN
-        ; read_result <- case wantHiBootFile mhome_unit eps mod from of
+        ; read_result <- case wantHiBootFile mhome_unit eps lvl mod from of
                            Failed err             -> return (Failed err)
                            Succeeded hi_boot_file -> do
                              hsc_env <- getTopEnv
@@ -457,7 +462,7 @@ loadInterface doc_str mod from
             Failed err -> do
                 { let fake_iface = emptyFullModIface mod
 
-                ; updateEps_ $ \eps ->
+                ; updateEps_ $ modifyEPSAt lvl $ \eps ->
                         eps { eps_PIT = extendModuleEnv (eps_PIT eps) (mi_module fake_iface) fake_iface }
                         -- Not found, so add an empty iface to
                         -- the EPS map so that we don't look again
@@ -541,7 +546,7 @@ loadInterface doc_str mod from
                 = old
 
         ; warnPprTrace bad_boot "loadInterface" (ppr mod) $
-          updateEps_  $ \ eps ->
+          updateEps_  $ modifyEPSAt lvl $ \ eps ->
            if elemModuleEnv mod (eps_PIT eps) || is_external_sig mhome_unit iface
                 then eps
            else if bad_boot
@@ -760,9 +765,9 @@ moduleFreeHolesPrecise doc_str mod
     (_, Nothing) -> return (Succeeded emptyUniqDSet)
   where
     tryEpsAndHpt eps hpt =
-        fmap mi_free_holes (lookupIfaceByModule hpt (eps_PIT eps) mod)
+        fmap mi_free_holes (lookupIfaceByModule hpt (withEPSAt todoStage eps_PIT eps) mod)
     tryDepsCache eps imod insts =
-        case lookupInstalledModuleEnv (eps_free_holes eps) imod of
+        case lookupInstalledModuleEnv (withEPSAt todoStage eps_free_holes eps) imod of
             Just ifhs  -> Just (renameFreeHoles ifhs insts)
             _otherwise -> Nothing
     readAndCache imod insts = do
@@ -774,15 +779,15 @@ moduleFreeHolesPrecise doc_str mod
             Succeeded (iface, _) -> do
                 let ifhs = mi_free_holes iface
                 -- Cache it
-                updateEps_ (\eps ->
+                updateEps_ $ modifyEPSAt todoStage $ (\eps ->
                     eps { eps_free_holes = extendInstalledModuleEnv (eps_free_holes eps) imod ifhs })
                 return (Succeeded (renameFreeHoles ifhs insts))
             Failed err -> return (Failed err)
 
-wantHiBootFile :: Maybe HomeUnit -> ExternalPackageState -> Module -> WhereFrom
+wantHiBootFile :: Maybe HomeUnit -> ExternalPackageState -> ModuleStage -> Module -> WhereFrom
                -> MaybeErr MissingInterfaceError IsBootInterface
 -- Figure out whether we want Foo.hi or Foo.hi-boot
-wantHiBootFile mhome_unit eps mod from
+wantHiBootFile mhome_unit eps lvl mod from
   = case from of
        ImportByUser usr_boot
           | usr_boot == IsBoot && notHomeModuleMaybe mhome_unit mod
@@ -801,7 +806,7 @@ wantHiBootFile mhome_unit eps mod from
              -- We never import boot modules from other packages!
 
           | otherwise
-          -> case lookupInstalledModuleEnv (eps_is_boot eps) (toUnitId <$> mod) of
+          -> case lookupInstalledModuleEnv (withEPSAt lvl eps_is_boot eps) (toUnitId <$> mod) of
                 Just (GWIB { gwib_isBoot = is_boot }) ->
                   Succeeded is_boot
                 Nothing ->
@@ -1054,11 +1059,12 @@ ghcPrimIface
 
 ifaceStats :: ExternalPackageState -> SDoc
 ifaceStats eps
-  = hcat [text "Renamer stats: ", msg]
+  = hcat [text "Renamer stats: ", stats]
   where
-    stats = eps_stats eps
-    msg = vcat
-        [int (n_ifaces_in stats) <+> text "interfaces read",
+    stats = withStagedEPS (\n e -> msg n (eps_stats e)) ($$) eps
+    msg n stats = vcat
+        [ text "Stage" <+> ppr n,
+        int (n_ifaces_in stats) <+> text "interfaces read",
          hsep [ int (n_decls_out stats), text "type/class/variable imported, out of",
                 int (n_decls_in stats), text "read"],
          hsep [ int (n_insts_out stats), text "instance decls imported, out of",

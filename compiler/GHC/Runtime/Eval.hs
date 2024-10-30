@@ -849,7 +849,7 @@ mkTopLevEnv hsc_env modl
                       $ fmap (foldr plusGlobalRdrEnv emptyGlobalRdrEnv)
                       $ forM imports $ \iface_import -> do
                         let ImpUserSpec spec details = tcIfaceImport hsc_env iface_import
-                        iface <- loadSrcInterface (text "imported by GHCi") (moduleName $ is_mod spec) (is_isboot spec) (is_pkg_qual spec)
+                        iface <- loadSrcInterface (text "imported by GHCi") (moduleName $ is_mod spec) (is_isboot spec) (is_pkg_qual spec) todoStage
                         pure $ case details of
                           ImpUserAll -> importsFromIface hsc_env iface spec Nothing
                           ImpUserEverythingBut ns -> importsFromIface hsc_env iface spec (Just ns)
