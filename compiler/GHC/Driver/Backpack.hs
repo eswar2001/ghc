@@ -580,7 +580,7 @@ mkBackpackMsg = do
             NeedsRecompile reason0 -> showMsg (text "Instantiating ") $ case reason0 of
               MustCompile -> empty
               RecompBecause reason -> text " [" <> pprWithUnitState state (ppr reason) <> text "]"
-        ModuleNode _ _ _ ->
+        ModuleNode {} ->
           case recomp of
             UpToDate
               | verbosity (hsc_dflags hsc_env) >= 2 -> showMsg (text "Skipping  ") empty
@@ -742,7 +742,7 @@ hsunitModuleGraph do_link unit = do
     --  requirement.
     let hsig_set = Set.fromList
           [ ms_mod_name ms
-          | ModuleNode _ _ ms <- nodes
+          | ModuleNode _ _ _ ms <- nodes
           , ms_hsc_src ms == HsigFile
           ]
     req_nodes <- fmap catMaybes . forM (homeUnitInstantiations home_unit) $ \(mod_name, _) ->
@@ -817,7 +817,7 @@ summariseRequirement pn mod_name = do
         ms_hspp_buf = Nothing
         }
     let nodes = [NodeKey_Module (ModNodeKeyWithUid (GWIB mn NotBoot) todoStage (homeUnitId home_unit)) | mn <- extra_sig_imports ]
-    return (ModuleNode nodes todoStage ms)
+    return (ModuleNode nodes [] todoStage ms)
 
 summariseDecl :: PackageName
               -> HscSource
@@ -935,7 +935,7 @@ hsModuleToModSummary home_keys pn hsc_src modname
           [k | (_, _,  mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) todoStage (moduleUnitId this_mod)), k `elem` home_keys]
 
 
-    return (ModuleNode (mod_nodes ++ inst_nodes) todoStage ms)
+    return (ModuleNode (mod_nodes ++ inst_nodes) [] todoStage ms)
 
 -- | Create a new, externally provided hashed unit id from
 -- a hash.

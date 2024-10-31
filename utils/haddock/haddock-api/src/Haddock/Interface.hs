@@ -223,7 +223,7 @@ createIfaces verbosity modules flags instIfaceMap = do
       -- but if module A {-# SOURCE #-} imports B, then we can't say the same.
       --
   let
-      go (AcyclicSCC (ModuleNode _ _ ms))
+      go (AcyclicSCC (ModuleNode _ _ _ ms))
         | NotBoot <- isBootSummary ms = [ms]
         | otherwise = []
       go (AcyclicSCC _) = []

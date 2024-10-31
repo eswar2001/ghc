@@ -1748,7 +1748,7 @@ editFile str =
 -- of those.
 chooseEditFile :: GHC.GhcMonad m => m String
 chooseEditFile =
-  do let hasFailed (GHC.ModuleNode _deps _ x) = fmap not $ isLoadedModSummary x
+  do let hasFailed (GHC.ModuleNode _deps _ _ x) = fmap not $ isLoadedModSummary x
          hasFailed _ = return False
 
      graph <- GHC.getModuleGraph
@@ -2200,7 +2200,7 @@ setContextAfterLoad keep_ctxt (Just graph) = do
         (m:_) ->
           load_this m
  where
-   is_loaded (GHC.ModuleNode _ _ ms) = isLoadedModSummary ms
+   is_loaded (GHC.ModuleNode _ _ _ ms) = isLoadedModSummary ms
    is_loaded _ = return False
 
    findTarget mds t
@@ -2208,9 +2208,9 @@ setContextAfterLoad keep_ctxt (Just graph) = do
         []    -> Nothing
         (m:_) -> Just m
 
-   (GHC.ModuleNode _ _ summary) `matches` Target { targetId = TargetModule m }
+   (GHC.ModuleNode _ _ _ summary) `matches` Target { targetId = TargetModule m }
         = if GHC.ms_mod_name summary == m then Just summary else Nothing
-   (GHC.ModuleNode _ _ summary) `matches` Target { targetId = TargetFile f _ }
+   (GHC.ModuleNode _ _  _ summary) `matches` Target { targetId = TargetFile f _ }
         | Just f' <- GHC.ml_hs_file (GHC.ms_location summary)   =
           if f == f' then Just summary else Nothing
    _ `matches` _ = Nothing

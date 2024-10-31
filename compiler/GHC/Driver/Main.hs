@@ -831,7 +831,7 @@ hscRecompStatus
   = do
     let
         msg what = case mHscMessage of
-          Just hscMessage -> hscMessage hsc_env mod_index what (ModuleNode [] lvl mod_summary)
+          Just hscMessage -> hscMessage hsc_env mod_index what (ModuleNode [] [] lvl mod_summary)
           Nothing -> return ()
 
     -- First check to see if the interface file agrees with the

@@ -187,7 +187,7 @@ import GHC.Types.Unique.Set( elementOfUniqSet )
 import GHC.Types.Name.Env
 import GHC.Types.Id
 
-import GHC.Unit.Module ( HasModule, getModule, extractModule )
+import GHC.Unit.Module
 import qualified GHC.Rename.Env as TcM
 
 import GHC.Utils.Outputable
@@ -216,6 +216,8 @@ import GHC.Data.Graph.Directed
 #endif
 
 import qualified Data.Set as Set
+import qualified Data.Map as Map
+import GHC.Unit.Module.Graph
 
 {- *********************************************************************
 *                                                                      *
@@ -1456,9 +1458,36 @@ checkWellStagedInstanceWhat what
         cur_mod <- extractModule <$> getGblEnv
         gbl_env <- getGblEnv
 --        pprTraceM "checkWellStaged" (ppr what)
+        hsc_env <- getTopEnv
+        let tg = mkTransDepsZero (hsc_units hsc_env) (mgModSummaries' (hsc_mod_graph hsc_env))
+        let lkup s = flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
+        let splice_lvl = lkup SpliceStage
+            normal_lvl = lkup NormalStage
+            quote_lvl  = lkup QuoteStage
+
+            name_module = nameModule (idName dfun_id)
+            instance_key = if moduleUnitId name_module `Set.member` hsc_all_home_unit_ids hsc_env
+                             then Left (ModNodeKeyWithUid (GWIB (moduleName name_module) NotBoot) zeroStage (moduleUnitId name_module), NormalStage)
+                             else Right (moduleUnitId name_module)
+
+  {-        pprTraceM "instnace_key" (ppr instance_key)
+        pprTraceM "splice_lvl" (ppr (instance_key `Set.member` splice_lvl))
+        pprTraceM "splice_lvl" (ppr (instance_key `Set.member` normal_lvl))
+        pprTraceM "splice_lvl" (ppr (instance_key `Set.member` quote_lvl))
+        -}
+        let lvls = [ 0 | instance_key `Set.member` splice_lvl]
+                 ++ [ 1 | instance_key `Set.member` normal_lvl ]
+                 ++ [ 2 | instance_key `Set.member` quote_lvl ]
+
+        if isLocalId dfun_id
+          then return $ Just ( (Set.singleton outerLevel, True) )
+          else return $ Just ( Set.fromList lvls, False )
+
+
 --        pprTraceM "checkWellStaged" (ppr (tcg_bind_env gbl_env))
 --        pprTraceM "checkWellStaged"
 --          (ppr (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id)))
+--    {-
         return $ (,isLocalId dfun_id)  <$> (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id))
         return $ case  lookupNameEnv (tcg_bind_env gbl_env) (idName dfun_id) of
           -- The instance comes from HPT imported module
@@ -1470,6 +1499,7 @@ checkWellStagedInstanceWhat what
               -- to deal with splice imports
               else Just ( (Set.fromList [impLevel, outerLevel], False) )
 --        return $ Just (TcM.topIdLvl dfun_id)
+--        -}
   | BuiltinTypeableInstance tc <- what
     = do
         cur_mod <- extractModule <$> getGblEnv
