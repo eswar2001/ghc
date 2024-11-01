@@ -27,6 +27,8 @@ import GHC.Runtime.Heap.Layout ( StgWord )
 import Data.Int
 import Data.Word
 
+import Data.ByteString (ByteString)
+
 import GHC.Stack.CCS (CostCentre)
 
 import GHC.Stg.Syntax
@@ -229,6 +231,10 @@ data BCInstr
                       !Word16                -- breakpoint info index
                       (RemotePtr CostCentre)
 
+   -- | A "meta"-instruction for recording the name of a BCO for debugging purposes.
+   -- These are ignored by the interpreter but helpfully printed by the disassmbler.
+   | BCO_NAME         !ByteString
+
 -- -----------------------------------------------------------------------------
 -- Printing bytecode instructions
 
@@ -383,6 +389,7 @@ instance Outputable BCInstr where
                                <+> text "<tick_module>" <+> ppr tickx
                                <+> text "<info_module>" <+> ppr infox
                                <+> text "<cc>"
+   ppr (BCO_NAME nm)         = text "BCO_NAME" <+> text (show nm)
 
 
 
@@ -487,3 +494,4 @@ bciStackUse SLIDE{}               = 0
 bciStackUse MKAP{}                = 0
 bciStackUse MKPAP{}               = 0
 bciStackUse PACK{}                = 1 -- worst case is PACK 0 words
+bciStackUse BCO_NAME{}            = 0

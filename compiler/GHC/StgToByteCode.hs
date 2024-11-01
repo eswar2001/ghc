@@ -81,6 +81,7 @@ import GHC.Unit.Home.ModInfo (lookupHpt)
 import Data.Array
 import Data.Coerce (coerce)
 import Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as BS
 import Data.Map (Map)
 import Data.IntMap (IntMap)
 import qualified Data.Map as Map
@@ -236,7 +237,8 @@ ppBCEnv p
 -- Create a BCO and do a spot of peephole optimisation on the insns
 -- at the same time.
 mkProtoBCO
-   :: Platform
+   :: (Outputable name)
+   => Platform
    -> name
    -> BCInstrList
    -> Either  [CgStgAlt] (CgStgRhs)
@@ -250,7 +252,7 @@ mkProtoBCO
 mkProtoBCO platform nm instrs_ordlist origin arity bitmap_size bitmap is_ret ffis
    = ProtoBCO {
         protoBCOName = nm,
-        protoBCOInstrs = maybe_with_stack_check,
+        protoBCOInstrs = maybe_add_bco_name $ maybe_add_stack_check peep_d,
         protoBCOBitmap = bitmap,
         protoBCOBitmapSize = fromIntegral bitmap_size,
         protoBCOArity = arity,
@@ -258,6 +260,10 @@ mkProtoBCO platform nm instrs_ordlist origin arity bitmap_size bitmap is_ret ffi
         protoBCOFFIs = ffis
       }
      where
+        maybe_add_bco_name instrs = BCO_NAME str : instrs
+          where
+            str = BS.pack $ showSDocOneLine defaultSDocContext (ppr nm)
+
         -- Overestimate the stack usage (in words) of this BCO,
         -- and if >= iNTERP_STACK_CHECK_THRESH, add an explicit
         -- stack check.  (The interpreter always does a stack check
@@ -265,17 +271,17 @@ mkProtoBCO platform nm instrs_ordlist origin arity bitmap_size bitmap is_ret ffi
         -- BCO anyway, so we only need to add an explicit one in the
         -- (hopefully rare) cases when the (overestimated) stack use
         -- exceeds iNTERP_STACK_CHECK_THRESH.
-        maybe_with_stack_check
-           | is_ret && stack_usage < fromIntegral (pc_AP_STACK_SPLIM (platformConstants platform)) = peep_d
+        maybe_add_stack_check instrs
+           | is_ret && stack_usage < fromIntegral (pc_AP_STACK_SPLIM (platformConstants platform)) = instrs
                 -- don't do stack checks at return points,
                 -- everything is aggregated up to the top BCO
                 -- (which must be a function).
                 -- That is, unless the stack usage is >= AP_STACK_SPLIM,
                 -- see bug #1466.
            | stack_usage >= fromIntegral iNTERP_STACK_CHECK_THRESH
-           = STKCHECK stack_usage : peep_d
+           = STKCHECK stack_usage : instrs
            | otherwise
-           = peep_d     -- the supposedly common case
+           = instrs     -- the supposedly common case
 
         -- We assume that this sum doesn't wrap
         stack_usage = sum (map bciStackUse peep_d)
