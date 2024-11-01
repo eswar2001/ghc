@@ -110,7 +110,7 @@
            (PrefixCon
             []
             [(HsScaled
-              (HsLinearArrow
+              (HsLinearAnn
                (EpPct1
                 (NoEpTok)
                 (NoEpUniTok)))
@@ -175,7 +175,7 @@
            (PrefixCon
             []
             [(HsScaled
-              (HsLinearArrow
+              (HsLinearAnn
                (EpPct1
                 (NoEpTok)
                 (NoEpUniTok)))
@@ -237,7 +237,7 @@
            (Nothing)
            (InfixCon
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -261,7 +261,7 @@
                 (Unqual
                  {OccName: Int})))))
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -368,7 +368,7 @@
            (Nothing)
            (InfixCon
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -392,7 +392,7 @@
                 (Unqual
                  {OccName: Int})))))
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -499,7 +499,7 @@
            (Nothing)
            (InfixCon
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -544,7 +544,7 @@
                    []))
                  [])))))
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -672,7 +672,7 @@
            (Nothing)
            (InfixCon
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -717,7 +717,7 @@
                    []))
                  [])))))
             (HsScaled
-             (HsLinearArrow
+             (HsLinearAnn
               (EpPct1
                (NoEpTok)
                (NoEpUniTok)))
@@ -889,25 +889,29 @@
                       []))
                     (Unqual
                      {OccName: a6}))))]
-                (L
-                 (EpAnn
-                  (EpaSpan { T24221.hs:28:18-20 })
-                  (AnnListItem
-                   [])
-                  (EpaComments
-                   []))
-                 (HsTyVar
-                  (NoEpTok)
-                  (NotPromoted)
-                  (L
-                   (EpAnn
-                    (EpaSpan { T24221.hs:28:18-20 })
-                    (NameAnnTrailing
-                     [])
-                    (EpaComments
-                     []))
-                   (Unqual
-                    {OccName: Int}))))
+                (HsScaled
+                 (HsUnannotated
+                  (HsUnannOne)
+                  (NoEpUniTok))
+                 (L
+                  (EpAnn
+                   (EpaSpan { T24221.hs:28:18-20 })
+                   (AnnListItem
+                    [])
+                   (EpaComments
+                    []))
+                  (HsTyVar
+                   (NoEpTok)
+                   (NotPromoted)
+                   (L
+                    (EpAnn
+                     (EpaSpan { T24221.hs:28:18-20 })
+                     (NameAnnTrailing
+                      [])
+                     (EpaComments
+                      []))
+                    (Unqual
+                     {OccName: Int})))))
                 (Just
                  (L
                   { T24221.hs:28:24-39 }
@@ -950,25 +954,29 @@
                       []))
                     (Unqual
                      {OccName: b6}))))]
-                (L
-                 (EpAnn
-                  (EpaSpan { T24221.hs:29:18-20 })
-                  (AnnListItem
-                   [])
-                  (EpaComments
-                   []))
-                 (HsTyVar
-                  (NoEpTok)
-                  (NotPromoted)
-                  (L
-                   (EpAnn
-                    (EpaSpan { T24221.hs:29:18-20 })
-                    (NameAnnTrailing
-                     [])
-                    (EpaComments
-                     []))
-                   (Unqual
-                    {OccName: Int}))))
+                (HsScaled
+                 (HsUnannotated
+                  (HsUnannOne)
+                  (NoEpUniTok))
+                 (L
+                  (EpAnn
+                   (EpaSpan { T24221.hs:29:18-20 })
+                   (AnnListItem
+                    [])
+                   (EpaComments
+                    []))
+                  (HsTyVar
+                   (NoEpTok)
+                   (NotPromoted)
+                   (L
+                    (EpAnn
+                     (EpaSpan { T24221.hs:29:18-20 })
+                     (NameAnnTrailing
+                      [])
+                     (EpaComments
+                      []))
+                    (Unqual
+                     {OccName: Int})))))
                 (Just
                  (L
                   { T24221.hs:29:24-39 }
@@ -1098,25 +1106,29 @@
                       []))
                     (Unqual
                      {OccName: a7}))))]
-                (L
-                 (EpAnn
-                  (EpaSpan { T24221.hs:33:13-15 })
-                  (AnnListItem
-                   [])
-                  (EpaComments
-                   []))
-                 (HsTyVar
-                  (NoEpTok)
-                  (NotPromoted)
-                  (L
-                   (EpAnn
-                    (EpaSpan { T24221.hs:33:13-15 })
-                    (NameAnnTrailing
-                     [])
-                    (EpaComments
-                     []))
-                   (Unqual
-                    {OccName: Int}))))
+                (HsScaled
+                 (HsUnannotated
+                  (HsUnannOne)
+                  (NoEpUniTok))
+                 (L
+                  (EpAnn
+                   (EpaSpan { T24221.hs:33:13-15 })
+                   (AnnListItem
+                    [])
+                   (EpaComments
+                    []))
+                  (HsTyVar
+                   (NoEpTok)
+                   (NotPromoted)
+                   (L
+                    (EpAnn
+                     (EpaSpan { T24221.hs:33:13-15 })
+                     (NameAnnTrailing
+                      [])
+                     (EpaComments
+                      []))
+                    (Unqual
+                     {OccName: Int})))))
                 (Just
                  (L
                   { T24221.hs:33:20-35 }
@@ -1159,25 +1171,29 @@
                       []))
                     (Unqual
                      {OccName: b7}))))]
-                (L
-                 (EpAnn
-                  (EpaSpan { T24221.hs:34:13-15 })
-                  (AnnListItem
-                   [])
-                  (EpaComments
-                   []))
-                 (HsTyVar
-                  (NoEpTok)
-                  (NotPromoted)
-                  (L
-                   (EpAnn
-                    (EpaSpan { T24221.hs:34:13-15 })
-                    (NameAnnTrailing
-                     [])
-                    (EpaComments
-                     []))
-                   (Unqual
-                    {OccName: Int}))))
+                (HsScaled
+                 (HsUnannotated
+                  (HsUnannOne)
+                  (NoEpUniTok))
+                 (L
+                  (EpAnn
+                   (EpaSpan { T24221.hs:34:13-15 })
+                   (AnnListItem
+                    [])
+                   (EpaComments
+                    []))
+                  (HsTyVar
+                   (NoEpTok)
+                   (NotPromoted)
+                   (L
+                    (EpAnn
+                     (EpaSpan { T24221.hs:34:13-15 })
+                     (NameAnnTrailing
+                      [])
+                     (EpaComments
+                      []))
+                    (Unqual
+                     {OccName: Int})))))
                 (Just
                  (L
                   { T24221.hs:34:20-35 }
@@ -1319,25 +1335,29 @@
                       []))
                     (Unqual
                      {OccName: a8}))))]
-                (L
-                 (EpAnn
-                  (EpaSpan { T24221.hs:40:11-13 })
-                  (AnnListItem
-                   [])
-                  (EpaComments
-                   []))
-                 (HsTyVar
-                  (NoEpTok)
-                  (NotPromoted)
-                  (L
-                   (EpAnn
-                    (EpaSpan { T24221.hs:40:11-13 })
-                    (NameAnnTrailing
-                     [])
-                    (EpaComments
-                     []))
-                   (Unqual
-                    {OccName: Int}))))
+                (HsScaled
+                 (HsUnannotated
+                  (HsUnannOne)
+                  (NoEpUniTok))
+                 (L
+                  (EpAnn
+                   (EpaSpan { T24221.hs:40:11-13 })
+                   (AnnListItem
+                    [])
+                   (EpaComments
+                    []))
+                  (HsTyVar
+                   (NoEpTok)
+                   (NotPromoted)
+                   (L
+                    (EpAnn
+                     (EpaSpan { T24221.hs:40:11-13 })
+                     (NameAnnTrailing
+                      [])
+                     (EpaComments
+                      []))
+                    (Unqual
+                     {OccName: Int})))))
                 (Just
                  (L
                   { T24221.hs:39:5-20 }
@@ -1380,25 +1400,29 @@
                       []))
                     (Unqual
                      {OccName: b8}))))]
-                (L
-                 (EpAnn
-                  (EpaSpan { T24221.hs:42:11-13 })
-                  (AnnListItem
-                   [])
-                  (EpaComments
-                   []))
-                 (HsTyVar
-                  (NoEpTok)
-                  (NotPromoted)
-                  (L
-                   (EpAnn
-                    (EpaSpan { T24221.hs:42:11-13 })
-                    (NameAnnTrailing
-                     [])
-                    (EpaComments
-                     []))
-                   (Unqual
-                    {OccName: Int}))))
+                (HsScaled
+                 (HsUnannotated
+                  (HsUnannOne)
+                  (NoEpUniTok))
+                 (L
+                  (EpAnn
+                   (EpaSpan { T24221.hs:42:11-13 })
+                   (AnnListItem
+                    [])
+                   (EpaComments
+                    []))
+                  (HsTyVar
+                   (NoEpTok)
+                   (NotPromoted)
+                   (L
+                    (EpAnn
+                     (EpaSpan { T24221.hs:42:11-13 })
+                     (NameAnnTrailing
+                      [])
+                     (EpaComments
+                      []))
+                    (Unqual
+                     {OccName: Int})))))
                 (Just
                  (L
                   { T24221.hs:41:5-20 }
