@@ -1813,14 +1813,14 @@ kcConH98Args new_or_data res_kind con_args = case con_args of
   PrefixCon _ tys   -> kcConArgTys new_or_data res_kind tys
   InfixCon ty1 ty2  -> kcConArgTys new_or_data res_kind [ty1, ty2]
   RecCon (L _ flds) -> kcConArgTys new_or_data res_kind $
-                       map (hsLinear . cd_fld_type . unLoc) flds
+                       map (cd_fld_type . unLoc) flds
 
 -- Kind-check the types of arguments to a GADT data constructor.
 kcConGADTArgs :: NewOrData -> TcKind -> HsConDeclGADTDetails GhcRn -> TcM ()
 kcConGADTArgs new_or_data res_kind con_args = case con_args of
   PrefixConGADT _ tys     -> kcConArgTys new_or_data res_kind tys
   RecConGADT _ (L _ flds) -> kcConArgTys new_or_data res_kind $
-                             map (hsLinear . cd_fld_type . unLoc) flds
+                             map (cd_fld_type . unLoc) flds
 
 kcConDecls :: Foldable f
            => NewOrData
@@ -3939,7 +3939,7 @@ tcRecConDeclFields exp_kind fields
   = mapM (tcConArg exp_kind) btys
   where
     -- We need a one-to-one mapping from field_names to btys
-    combined = map (\(L _ f) -> (cd_fld_names f,hsLinear (cd_fld_type f)))
+    combined = map (\(L _ f) -> (cd_fld_names f, cd_fld_type f))
                    (unLoc fields)
     explode (ns,ty) = zip ns (repeat ty)
     exploded = concatMap explode combined

@@ -239,7 +239,8 @@
                      []))
                    (HsFunTy
                     (NoExtField)
-                    (HsUnrestrictedArrow
+                    (HsUnannotated
+                     (HsUnannMany)
                      (EpUniTok
                       (EpaSpan { Test20239.hs:7:62-63 })
                       (NormalSyntax)))

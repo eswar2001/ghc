@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE LambdaCase #-}
                                       -- in module Language.Haskell.Syntax.Extension
 {-
@@ -21,8 +22,10 @@ GHC.Hs.Type: Abstract syntax: user-defined types
 -- See Note [Language.Haskell.Syntax.* Hierarchy] for why not GHC.Hs.*
 module Language.Haskell.Syntax.Type (
         HsScaled(..),
-        hsMult, hsScaledThing,
-        HsArrow, HsArrowOf(..), XUnrestrictedArrow, XLinearArrow, XExplicitMult, XXArrow,
+        hsMultIsLinear, hsScaledThing,
+        HsArrow, HsArrowOf(..), HsUnannotatedMult(..),
+        pattern HsUnrestrictedArrow,
+        XUnrestrictedArrow, XLinearArrow, XExplicitMult, XXArrow,
 
         HsType(..), LHsType, HsKind, LHsKind,
         HsBndrVis(..), XBndrRequired, XBndrInvisible, XXBndrVis,
@@ -78,7 +81,7 @@ import Data.Maybe
 import Data.Eq
 import Data.Bool
 import Data.Char
-import Prelude (Integer)
+import Prelude (Integer, Functor)
 import Data.Ord (Ord)
 
 {-
@@ -939,9 +942,20 @@ data HsTyLit pass
 
 type HsArrow pass = HsArrowOf (LHsType pass) pass
 
+-- HsArrow is used both to represent function arrows and multiplicity annotations
+-- in the record declaration syntax. But the default multiplicity is different
+-- between the two uses. In record syntax, the default is One, but on
+-- arrows, the default is Many. `HsUnannotatedMult` is used to
+-- distinguish between the two uses.
+data HsUnannotatedMult = HsUnannOne | HsUnannMany
+  deriving (Eq, Ord, Data)
+
+pattern HsUnrestrictedArrow :: XUnrestrictedArrow mult pass -> HsArrowOf mult pass
+pattern HsUnrestrictedArrow a = HsUnannotated HsUnannMany a
+
 -- | Denotes the type of arrows in the surface language
 data HsArrowOf mult pass
-  = HsUnrestrictedArrow !(XUnrestrictedArrow mult pass)
+  = HsUnannotated HsUnannotatedMult !(XUnrestrictedArrow mult pass)
     -- ^ a -> b or a → b
 
   | HsLinearArrow !(XLinearArrow mult pass)
@@ -963,9 +977,13 @@ type family XXArrow            mult p
 -- | This is used in the syntax. In constructor declaration. It must keep the
 -- arrow representation.
 data HsScaled pass a = HsScaled (HsArrow pass) a
+  deriving (Functor)
 
-hsMult :: HsScaled pass a -> HsArrow pass
-hsMult (HsScaled m _) = m
+hsMultIsLinear :: Bool -> HsScaled pass a -> Bool
+hsMultIsLinear _      (HsScaled (HsUnannotated HsUnannOne _) _) = True
+hsMultIsLinear linear (HsScaled (HsUnannotated HsUnannMany _) _) = not linear
+hsMultIsLinear _      (HsScaled HsLinearArrow{} _) = True
+hsMultIsLinear _      _ = False
 
 hsScaledThing :: HsScaled pass a -> a
 hsScaledThing (HsScaled _ t) = t
@@ -1073,7 +1091,7 @@ data ConDeclField pass  -- Record fields have Haddock docs on them
   = ConDeclField { cd_fld_ext  :: XConDeclField pass,
                    cd_fld_names :: [LFieldOcc pass],
                                    -- ^ See Note [ConDeclField pass]
-                   cd_fld_type :: LBangType pass,
+                   cd_fld_type :: HsScaled pass (LBangType pass),
                    cd_fld_doc  :: Maybe (LHsDoc pass)}
   | XConDeclField !(XXConDeclField pass)
 

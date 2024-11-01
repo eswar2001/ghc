@@ -2597,7 +2597,12 @@ fielddecl :: { LConDeclField GhcPs }
             {% amsA' (L (comb2 $1 $3)
                       (ConDeclField (epUniTok $2)
                                     (reverse (map (\ln@(L l n)
-                                               -> L (fromTrailingN l) $ FieldOcc noExtField (L (noTrailingN l) n)) (unLoc $1))) $3 Nothing))}
+                                               -> L (fromTrailingN l) $ FieldOcc noExtField (L (noTrailingN l) n)) (unLoc $1))) (hsNoMultAnn HsUnannOne $3) Nothing))}
+        | sig_vars PREFIX_PERCENT atype '::' ctype
+            {% amsA' (L (comb4 $1 $2 $3 $5)
+                      (ConDeclField (epUniTok $4)
+                                    (reverse (map (\ln@(L l n)
+                                               -> L (fromTrailingN l) $ FieldOcc noExtField (L (noTrailingN l) n)) (unLoc $1))) (mkMultField (epTok $2) $3 (epUniTok $4) $5) Nothing))}
 
 -- Reversed!
 maybe_derivings :: { Located (HsDeriving GhcPs) }
@@ -2661,7 +2666,7 @@ There's an awkward overlap with a type signature.  Consider
 decl_no_th :: { LHsDecl GhcPs }
         : sigdecl               { $1 }
 
-        | infixexp     opt_sig rhs  {% runPV (unECP $1) >>= \ $1 ->
+        | infixexp opt_sig rhs  {% runPV (unECP $1) >>= \ $1 ->
                                        do { let { l = comb2 $1 $> }
                                           ; r <- checkValDef l $1 (HsNoMultAnn noExtField, $2) $3;
                                         -- Depending upon what the pattern looks like we might get either
@@ -2669,7 +2674,7 @@ decl_no_th :: { LHsDecl GhcPs }
                                         -- [FunBind vs PatBind]
                                           ; !cs <- getCommentsFor l
                                           ; return $! (sL (commentsA l cs) $ ValD noExtField r) } }
-        | PREFIX_PERCENT atype infixexp     opt_sig rhs  {% runPV (unECP $3) >>= \ $3 ->
+        | PREFIX_PERCENT atype infixexp opt_sig rhs {% runPV (unECP $3) >>= \ $3 ->
                                        do { let { l = comb2 $1 $> }
                                           ; r <- checkValDef l $3 (mkMultAnn (epTok $1) $2, $4) $5;
                                         -- parses bindings of the form %p x or

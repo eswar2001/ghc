@@ -2000,7 +2000,7 @@ instance HiePass p => ToHie (LocatedC [LocatedA (HsExpr (GhcPass p))]) where
 instance ToHie (LocatedA (ConDeclField GhcRn)) where
   toHie (L span field) = concatM $ makeNode field (locA span) : case field of
       ConDeclField _ fields typ doc ->
-        [ toHie $ map (RFC RecFieldDecl (getRealSpan $ getHasLoc typ)) fields
+        [ toHie $ map (RFC RecFieldDecl (getRealSpan $ getHasLoc $ hsScaledThing typ)) fields
         , toHie typ
         , toHie doc
         ]

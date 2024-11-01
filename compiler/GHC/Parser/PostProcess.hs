@@ -71,6 +71,7 @@ module GHC.Parser.PostProcess (
         UnpackednessPragma(..),
         mkMultTy,
         mkMultAnn,
+        mkMultField,
 
         -- Token location
         mkTokenLocation,
@@ -3517,6 +3518,9 @@ mkMultAnn pct t@(L _ (HsTyLit _ (HsNumTy (SourceText (unpackFS -> "1")) 1)))
     pct1 :: EpToken "%1"
     pct1 = epTokenWidenR pct (locA (getLoc t))
 mkMultAnn pct t = HsMultAnn pct t
+
+mkMultField :: EpToken "%" -> LHsType GhcPs -> TokDcolon -> LHsType GhcPs -> HsScaled GhcPs (LBangType GhcPs)
+mkMultField pct mult _ t = HsScaled (mkMultTy pct mult noAnn) t
 
 mkTokenLocation :: SrcSpan -> TokenLocation
 mkTokenLocation (UnhelpfulSpan _) = NoTokenLoc

@@ -451,10 +451,14 @@ rnLHsTypes :: HsDocContext -> [LHsType GhcPs] -> RnM ([LHsType GhcRn], FreeVars)
 rnLHsTypes doc tys = mapFvRn (rnLHsType doc) tys
 
 rnScaledLHsType :: HsDocContext -> HsScaled GhcPs (LHsType GhcPs)
-                                  -> RnM (HsScaled GhcRn (LHsType GhcRn), FreeVars)
-rnScaledLHsType doc (HsScaled w ty) = do
-  (w' , fvs_w) <- rnHsArrow (mkTyKiEnv doc TypeLevel RnTypeBody) w
-  (ty', fvs) <- rnLHsType doc ty
+                -> RnM (HsScaled GhcRn (LHsType GhcRn), FreeVars)
+rnScaledLHsType doc = rnScaledLHsTyKi (mkTyKiEnv doc TypeLevel RnTypeBody)
+
+rnScaledLHsTyKi :: RnTyKiEnv -> HsScaled GhcPs (LHsType GhcPs)
+                -> RnM (HsScaled GhcRn (LHsType GhcRn), FreeVars)
+rnScaledLHsTyKi env (HsScaled w ty) = do
+  (w' , fvs_w) <- rnHsArrow env w
+  (ty', fvs) <- rnLHsTyKi env ty
   return (HsScaled w' ty', fvs `plusFV` fvs_w)
 
 
@@ -709,7 +713,7 @@ rnHsArrow env = rnHsArrowWith (rnLHsTyKi env)
 rnHsArrowWith :: (LocatedA (mult GhcPs) -> RnM (LocatedA (mult GhcRn), FreeVars))
               -> HsArrowOf (LocatedA (mult GhcPs)) GhcPs
               -> RnM (HsArrowOf (LocatedA (mult GhcRn)) GhcRn, FreeVars)
-rnHsArrowWith _rn (HsUnrestrictedArrow _) = pure (HsUnrestrictedArrow noExtField, emptyFVs)
+rnHsArrowWith _rn (HsUnannotated arrUse _) = pure (HsUnannotated arrUse noExtField, emptyFVs)
 rnHsArrowWith _rn (HsLinearArrow _) = pure (HsLinearArrow noExtField, emptyFVs)
 rnHsArrowWith rn (HsExplicitMult _ p)
   =  (\(mult, fvs) -> (HsExplicitMult noExtField mult, fvs)) <$> rn p
@@ -1335,7 +1339,7 @@ rnField :: FastStringEnv FieldLabel -> RnTyKiEnv -> LConDeclField GhcPs
         -> RnM (LConDeclField GhcRn, FreeVars)
 rnField fl_env env (L l (ConDeclField _ names ty haddock_doc))
   = do { let new_names = map (fmap (lookupField fl_env)) names
-       ; (new_ty, fvs) <- rnLHsTyKi env ty
+       ; (new_ty, fvs) <- rnScaledLHsTyKi env ty
        ; haddock_doc' <- traverse rnLHsDoc haddock_doc
        ; return (L l (ConDeclField noAnn new_names new_ty haddock_doc')
                 , fvs) }
@@ -2031,7 +2035,7 @@ extractConDeclGADTDetailsTyVars ::
   HsConDeclGADTDetails GhcPs -> FreeKiTyVars -> FreeKiTyVars
 extractConDeclGADTDetailsTyVars con_args = case con_args of
   PrefixConGADT _ args    -> extract_scaled_ltys args
-  RecConGADT _ (L _ flds) -> extract_ltys $ map (cd_fld_type . unLoc) $ flds
+  RecConGADT _ (L _ flds) -> extract_scaled_ltys $ map (cd_fld_type . unLoc) $ flds
 
 -- | Get type/kind variables mentioned in the kind signature, preserving
 -- left-to-right order:
@@ -2063,7 +2067,7 @@ extract_lty (L _ ty) acc
   = case ty of
       HsTyVar _ _  ltv            -> extract_tv ltv acc
       HsBangTy _ _ ty             -> extract_lty ty acc
-      HsRecTy _ flds              -> foldr (extract_lty
+      HsRecTy _ flds              -> foldr (extract_scaled_lty
                                             . cd_fld_type . unLoc) acc
                                            flds
       HsAppTy _ ty1 ty2           -> extract_lty ty1 $

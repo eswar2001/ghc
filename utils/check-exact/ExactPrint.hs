@@ -832,9 +832,9 @@ markEpUniToken (EpUniTok aa isUnicode)  = do
 -- ---------------------------------------------------------------------
 
 markArrow :: (Monad m, Monoid w, ExactPrint a) => HsArrowOf a GhcPs -> EP w m (HsArrowOf a GhcPs)
-markArrow (HsUnrestrictedArrow arr) = do
+markArrow (HsUnannotated t arr) = do
   arr' <- markEpUniToken arr
-  return (HsUnrestrictedArrow arr')
+  return (HsUnannotated t arr')
 markArrow (HsLinearArrow (EpPct1 pct1 arr)) = do
   pct1' <- markEpToken pct1
   arr' <- markEpUniToken arr

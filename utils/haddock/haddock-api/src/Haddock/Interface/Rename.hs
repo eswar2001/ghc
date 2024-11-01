@@ -341,7 +341,7 @@ renameMaybeInjectivityAnn
 renameMaybeInjectivityAnn = traverse renameInjectivityAnn
 
 renameArrow :: HsArrow GhcRn -> RnM (HsArrow DocNameI)
-renameArrow (HsUnrestrictedArrow _) = return (HsUnrestrictedArrow noExtField)
+renameArrow (HsUnannotated arrUse _) = return (HsUnannotated arrUse noExtField)
 renameArrow (HsLinearArrow _) = return (HsLinearArrow noExtField)
 renameArrow (HsExplicitMult _ p) = HsExplicitMult noExtField <$> renameLType p
 
@@ -746,7 +746,7 @@ renameGADTDetails (PrefixConGADT _ ps) = PrefixConGADT noExtField <$> mapM renam
 renameConDeclFieldField :: LConDeclField GhcRn -> RnM (LConDeclField DocNameI)
 renameConDeclFieldField (L l (ConDeclField _ names t doc)) = do
   names' <- mapM renameLFieldOcc names
-  t' <- renameLType t
+  t' <- renameHsScaled t
   doc' <- mapM renameLDocHsSyn doc
   return $ L (locA l) (ConDeclField noExtField names' t' doc')
 

@@ -9,6 +9,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE UndecidableInstances #-} -- Wrinkle in Note [Trees That Grow]
                                        -- in module Language.Haskell.Syntax.Extension
 
@@ -24,10 +25,10 @@ GHC.Hs.Type: Abstract syntax: user-defined types
 
 module GHC.Hs.Type (
         Mult, HsScaled(..),
-        hsMult, hsScaledThing,
-        HsArrow, HsArrowOf(..), arrowToHsType, expandHsArrow,
+        hsMultIsLinear, hsScaledThing, hsScaledToHsTypes,
+        HsArrow, HsArrowOf(..), HsUnannotatedMult(..), pattern HsUnrestrictedArrow, arrowToHsType, expandHsArrow,
         EpLinearArrow(..),
-        hsLinear, hsUnrestricted, isUnrestricted,
+        hsLinear, hsUnrestricted, hsNoMultAnn, isUnrestricted,
         pprHsArrow,
 
         HsType(..), HsCoreTy, LHsType, HsKind, LHsKind,
@@ -545,12 +546,18 @@ hsLinear = HsScaled (HsLinearArrow x)
       GhcTc -> noExtField
 
 hsUnrestricted :: forall p a. IsPass p => a -> HsScaled (GhcPass p) a
-hsUnrestricted = HsScaled (HsUnrestrictedArrow x)
+hsUnrestricted = hsNoMultAnn HsUnannMany
+
+hsNoMultAnn :: forall p a. IsPass p => HsUnannotatedMult -> a -> HsScaled (GhcPass p) a
+hsNoMultAnn t = HsScaled (HsUnannotated t x)
   where
     x = case ghcPass @p of
       GhcPs -> noAnn
       GhcRn -> noExtField
       GhcTc -> noExtField
+
+hsScaledToHsTypes :: (a -> LHsType GhcRn) -> HsScaled GhcRn a -> [LHsType GhcRn]
+hsScaledToHsTypes f (HsScaled arr x) = [arrowToHsType arr, f x]
 
 isUnrestricted :: HsArrow GhcRn -> Bool
 isUnrestricted (arrowToHsType -> L _ (HsTyVar _ _ (L _ n))) = n == manyDataConName
@@ -563,7 +570,8 @@ arrowToHsType = expandHsArrow (HsTyVar noAnn NotPromoted)
 -- erases the information of whether the programmer wrote an explicit
 -- multiplicity or a shorthand.
 expandHsArrow :: (LocatedN Name -> t GhcRn) -> HsArrowOf (LocatedA (t GhcRn)) GhcRn -> LocatedA (t GhcRn)
-expandHsArrow mk_var (HsUnrestrictedArrow _) = noLocA (mk_var (noLocA manyDataConName))
+expandHsArrow mk_var (HsUnannotated HsUnannOne _) = noLocA (mk_var (noLocA oneDataConName))
+expandHsArrow mk_var (HsUnannotated HsUnannMany _) = noLocA (mk_var (noLocA manyDataConName))
 expandHsArrow mk_var (HsLinearArrow _) = noLocA (mk_var (noLocA oneDataConName))
 expandHsArrow _mk_var (HsExplicitMult _ p) = p
 
@@ -574,16 +582,25 @@ instance
 
 -- See #18846
 pprHsArrow :: (Outputable mult, OutputableBndrId pass) => HsArrowOf mult (GhcPass pass) -> SDoc
-pprHsArrow (HsUnrestrictedArrow _) = pprArrowWithMultiplicity visArgTypeLike (Left False)
-pprHsArrow (HsLinearArrow _)       = pprArrowWithMultiplicity visArgTypeLike (Left True)
-pprHsArrow (HsExplicitMult _ p)    = pprArrowWithMultiplicity visArgTypeLike (Right (ppr p))
+pprHsArrow (HsUnannotated _ _)  = pprArrowWithMultiplicity visArgTypeLike (Left False)
+pprHsArrow (HsLinearArrow _)    = pprArrowWithMultiplicity visArgTypeLike (Left True)
+pprHsArrow (HsExplicitMult _ p) = pprArrowWithMultiplicity visArgTypeLike (Right (ppr p))
 
 type instance XConDeclField  (GhcPass _) = TokDcolon
 type instance XXConDeclField (GhcPass _) = DataConCantHappen
 
 instance OutputableBndrId p
        => Outputable (ConDeclField (GhcPass p)) where
-  ppr (ConDeclField _ fld_n fld_ty _) = ppr fld_n <+> dcolon <+> ppr fld_ty
+  ppr (ConDeclField _ fld_n (HsScaled fld_mult fld_ty) _) = ppr_names fld_n <+> ppr_mult <+> ppr fld_ty
+    where
+      ppr_names :: [LFieldOcc (GhcPass p)] -> SDoc
+      ppr_names [n] = pprPrefixOcc n
+      ppr_names ns = sep (punctuate comma (map pprPrefixOcc ns))
+
+      ppr_mult = case fld_mult of
+        HsUnannotated _ _ -> dcolon
+        HsLinearArrow _ -> text "%1" <+> dcolon
+        HsExplicitMult _ p -> text "%" <> ppr p <+> dcolon
 
 ---------------------
 hsWcScopedTvs :: LHsSigWcType GhcRn -> [Name]
@@ -1365,13 +1382,9 @@ pprConDeclFields :: forall p. OutputableBndrId p
                  => [LConDeclField (GhcPass p)] -> SDoc
 pprConDeclFields fields = braces (sep (punctuate comma (map ppr_fld fields)))
   where
-    ppr_fld (L _ (ConDeclField { cd_fld_names = ns, cd_fld_type = ty,
-                                 cd_fld_doc = doc }))
-        = pprMaybeWithDoc doc (ppr_names ns <+> dcolon <+> ppr ty)
-
-    ppr_names :: forall p. OutputableBndrId p => [LFieldOcc (GhcPass p)] -> SDoc
-    ppr_names [n] = pprPrefixOcc n
-    ppr_names ns = sep (punctuate comma (map pprPrefixOcc ns))
+    ppr_fld :: LConDeclField (GhcPass p) -> SDoc
+    ppr_fld (L _ (cdf@ConDeclField { cd_fld_doc = doc }))
+        = pprMaybeWithDoc doc (ppr cdf)
 
 -- Printing works more-or-less as for Types
 
