@@ -41,6 +41,7 @@
         (EpaSpan { mod185.hs:3:1-6 })
         (Nothing)
         (Nothing)
+        (Nothing)
         (Just
          (EpaSpan { mod185.hs:3:16-24 }))
         (Nothing)
@@ -59,6 +60,7 @@
       {ModuleName: Prelude})
      (NoRawPkgQual)
      (NotBoot)
+     (NormalStage)
      (False)
      (QualifiedPost)
      (Nothing)

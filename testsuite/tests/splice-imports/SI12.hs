@@ -1,4 +1,4 @@
-{-# LANGUAGE ExplicitStageImports #-}
+{-# LANGUAGE NoLiftCSP #-}
 {-# LANGUAGE TemplateHaskell #-}
 module SI11 where
 

@@ -224,6 +224,7 @@
         (Nothing)
         (Nothing)
         (Nothing)
+        (Nothing)
         (Nothing))
        (EpaComments
         []))
@@ -239,6 +240,7 @@
       {ModuleName: Prelude})
      (NoPkgQual)
      (NotBoot)
+     (NormalStage)
      (False)
      (NotQualified)
      (Nothing)
