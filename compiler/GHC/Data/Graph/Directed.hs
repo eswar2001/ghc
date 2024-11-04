@@ -14,7 +14,7 @@ module GHC.Data.Graph.Directed (
         stronglyConnCompG,
         topologicalSortG,
         verticesG, edgesG, hasVertexG,
-        reachableG, reachablesG, transposeG, allReachable, allReachableCyclic, outgoingG,
+        reachableG, reachablesG, reachablesG2, transposeG, allReachable, allReachableCyclic, outgoingG,
         emptyG,
 
         findCycle,
@@ -67,6 +67,10 @@ import qualified Data.IntMap as IM
 import qualified Data.IntSet as IS
 import qualified Data.Map as M
 import qualified Data.Set as S
+import Data.Array.ST.Safe (STUArray)
+import Control.Monad.ST
+import Data.Array.ST.Safe (newArray, readArray, writeArray)
+import Data.Array
 
 {-
 ************************************************************************
@@ -374,6 +378,13 @@ reachablesG graph froms = map (gr_vertex_to_node graph) result
                  reachable (gr_int_graph graph) vs
         vs = [ v | Just v <- map (gr_node_to_vertex graph) froms ]
 
+-- | Like reachablesG but do not include starting nodes
+reachablesG2 :: Graph node -> [node] -> [node]
+reachablesG2 graph froms = map (gr_vertex_to_node graph) result
+  where result = {-# SCC "Digraph.reachable" #-}
+                 reachableBut (gr_int_graph graph) vs
+        vs = [ v | Just v <- map (gr_node_to_vertex graph) froms ]
+
 -- | Efficiently construct a map which maps each key to it's set of transitive
 -- dependencies. Only works on acyclic input.
 allReachable :: Ord key => Graph node -> (node -> key) -> M.Map key (S.Set key)
@@ -457,9 +468,62 @@ preorderF ts         = concatMap flatten ts
 ------------------------------------------------------------
 -}
 
+newtype SetM s a = SetM { runSetM :: STUArray s Vertex Bool -> ST s a }
+
+instance Monad (SetM s) where
+    return = pure
+    {-# INLINE return #-}
+    SetM v >>= f = SetM $ \s -> do { x <- v s; runSetM (f x) s }
+    {-# INLINE (>>=) #-}
+
+instance Functor (SetM s) where
+    f `fmap` SetM v = SetM $ \s -> f `fmap` v s
+    {-# INLINE fmap #-}
+
+instance Applicative (SetM s) where
+    pure x = SetM $ const (return x)
+    {-# INLINE pure #-}
+    SetM f <*> SetM v = SetM $ \s -> f s >>= (`fmap` v s)
+    -- We could also use the following definition
+    --   SetM f <*> SetM v = SetM $ \s -> f s <*> v s
+    -- but Applicative (ST s) instance is present only in GHC 7.2+
+    {-# INLINE (<*>) #-}
+
+run          :: Bounds -> (forall s. SetM s a) -> a
+run bnds act  = runST (newArray bnds False >>= runSetM act)
+
+contains     :: Vertex -> SetM s Bool
+contains v    = SetM $ \ m -> readArray m v
+
+include      :: Vertex -> SetM s ()
+include v     = SetM $ \ m -> writeArray m v True
+
+dfs2 :: G.Graph -> [Vertex] -> [Vertex]
+dfs2 g vs0 = run (bounds g) $ start vs0
+  where
+    start :: [Vertex] -> SetM s [Vertex]
+    start [] = pure []
+    start (v:vs) = do
+      as <- concat <$> mapM go (g ! v)
+      bs <- start vs
+      pure $ as ++ bs
+
+    go :: Vertex -> SetM s [Vertex]
+    go v = do
+      visited <- contains v
+      if visited
+      then return []
+      else do
+        include v
+        bs <- concat <$> mapM go (g!v)
+        return (v:bs)
+
+
 -- This generalizes reachable which was found in Data.Graph
 reachable    :: IntGraph -> [Vertex] -> [Vertex]
 reachable g vs = preorderF (G.dfs g vs)
+
+reachableBut g vs = dfs2 g vs
 
 reachableGraph :: IntGraph -> IM.IntMap IS.IntSet
 reachableGraph g = res

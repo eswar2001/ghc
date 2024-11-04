@@ -1617,7 +1617,7 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
        -- for dependencies of modules that have -XTemplateHaskell,
        -- otherwise those modules will fail to compile.
        -- See Note [-fno-code mode] #8025
-       th_enabled_nodes <- enableCodeGenForTH logger tmpfs unit_env all_nodes
+       th_enabled_nodes <- enableCodeGenForTH logger tmpfs unit_env (hsc_units hsc_env) all_nodes
        if null all_root_errs
          then return (all_errs, th_enabled_nodes)
          else pure $ (all_root_errs, [])
@@ -1878,10 +1878,11 @@ enableCodeGenForTH
   :: Logger
   -> TmpFs
   -> UnitEnv
+  -> UnitState
   -> [ModuleGraphNode]
   -> IO [ModuleGraphNode]
-enableCodeGenForTH logger tmpfs unit_env =
-  enableCodeGenWhen logger tmpfs TFL_CurrentModule TFL_GhcSession unit_env
+enableCodeGenForTH logger tmpfs unit_env unit_state =
+  enableCodeGenWhen logger tmpfs TFL_CurrentModule TFL_GhcSession unit_env unit_state
 
 
 data CodeGenEnable = EnableByteCode | EnableObject | EnableByteCodeAndObject deriving (Eq, Show, Ord)
@@ -1901,9 +1902,10 @@ enableCodeGenWhen
   -> TempFileLifetime
   -> TempFileLifetime
   -> UnitEnv
+  -> UnitState
   -> [ModuleGraphNode]
   -> IO [ModuleGraphNode]
-enableCodeGenWhen logger tmpfs staticLife dynLife unit_env mod_graph =
+enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph =
   mapM enable_code_gen mod_graph
   where
     defaultBackendOf ms = platformDefaultBackend (targetPlatform $ ue_unitFlags (ms_unitid ms) unit_env)
@@ -1914,7 +1916,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env mod_graph =
         , ms_hsc_src = HsSrcFile
         , ms_hspp_opts = dflags
         } <- ms
-      , Just enable_spec <- mkNodeKey n `Map.lookup` needs_codegen_map =
+      , Just enable_spec <- msKey lvl ms `Map.lookup` needs_codegen_map =
       if | nocode_enable ms -> do
                let new_temp_file suf dynsuf = do
                      tn <- newTempName logger tmpfs (tmpDir dflags) staticLife suf
@@ -2023,17 +2025,19 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env mod_graph =
        lcl_dflags   = ms_hspp_opts ms
        internalInterpreter = not (gopt Opt_ExternalInterpreter lcl_dflags)
 
-    (mg, lookup_node) = moduleGraphNodes False mod_graph
+    (mg, lookup_node) = moduleGraphNodesZero unit_state mod_graph
 
-    mk_needed_set roots = Set.fromList $ map (mkNodeKey . node_payload) $ reachablesG mg (map (expectJust "needs_th" . lookup_node) roots)
+    ttMap = mkTransDepsZero unit_state mod_graph
 
-    needs_obj_set, needs_bc_set :: Set.Set NodeKey
-    needs_obj_set = mk_needed_set need_obj_set
+    mk_needed_set roots = pprTrace "ttMap" (ppr ttMap) $ Set.fromList $ map fst $ pprTraceIt "mk_needed_set" $ lefts $ map node_payload $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) (map Left roots))
+
+    needs_obj_set, needs_bc_set :: Set.Set ModNodeKeyWithUid
+    needs_obj_set = pprTraceIt "res_needs_obj_set" $ mk_needed_set (pprTraceIt "needs_obj_set" need_obj_set)
 
     needs_bc_set = mk_needed_set need_bc_set
 
     -- A map which tells us how to enable code generation for a NodeKey
-    needs_codegen_map :: Map.Map NodeKey CodeGenEnable
+    needs_codegen_map :: Map.Map ModNodeKeyWithUid CodeGenEnable
     needs_codegen_map =
       -- Another option here would be to just produce object code, rather than both object and
       -- byte code
@@ -2041,12 +2045,14 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env mod_graph =
         (Map.fromList $ [(m, EnableObject) | m <- Set.toList needs_obj_set])
         (Map.fromList $ [(m, EnableByteCode) | m <- Set.toList needs_bc_set])
 
+    code_stage ms = if isExplicitStageMS ms then SpliceStage else NormalStage
+
     -- The direct dependencies of modules which require object code
     need_obj_set =
-      concat
+
         -- Note we don't need object code for a module if it uses TemplateHaskell itself. Only
         -- it's dependencies.
-        [ deps
+        [ (msKey lvl ms, code_stage ms)
         | (ModuleNode deps uids lvl ms) <- mod_graph
         , isTemplateHaskellOrQQNonBoot ms
         , not (gopt Opt_UseBytecodeRatherThanObjects (ms_hspp_opts ms))
@@ -2054,8 +2060,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env mod_graph =
 
     -- The direct dependencies of modules which require byte code
     need_bc_set =
-      concat
-        [ deps
+        [ (msKey lvl ms, code_stage ms)
         | (ModuleNode deps uids lvl ms) <- mod_graph
         , isTemplateHaskellOrQQNonBoot ms
         , gopt Opt_UseBytecodeRatherThanObjects (ms_hspp_opts ms)

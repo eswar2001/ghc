@@ -13,6 +13,7 @@ module GHC.Unit.Module.Graph
    , extendMG'
    , unionMG
    , isTemplateHaskellOrQQNonBoot
+   , isExplicitStageMS
    , filterToposortToModules
    , mapMG
    , mgModSummaries
@@ -166,7 +167,8 @@ zeroStage :: ModuleStage
 zeroStage = ModuleStage 1
 
 todoStage :: HasCallStack => ModuleStage
-todoStage = pprTrace "todoStage" callStackDoc zeroStage
+todoStage -- = pprTrace "todoStage" callStackDoc
+          = zeroStage
 
 moduleStageToThLevel (ModuleStage m) = m
 incModuleStage (ModuleStage m) = ModuleStage (m + 1)
@@ -248,6 +250,9 @@ isTemplateHaskellOrQQNonBoot ms =
   (xopt LangExt.TemplateHaskell (ms_hspp_opts ms)
     || xopt LangExt.QuasiQuotes (ms_hspp_opts ms)) &&
   (isBootSummary ms == NotBoot)
+
+isExplicitStageMS :: ModSummary -> Bool
+isExplicitStageMS ms = xopt LangExt.StagedImports (ms_hspp_opts ms)
 
 -- | Add an ExtendedModSummary to ModuleGraph. Assumes that the new ModSummary is
 -- not an element of the ModuleGraph.
