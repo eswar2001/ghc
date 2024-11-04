@@ -25,4 +25,5 @@ test('SI18', normal,  compile_fail, [''])
 test('SI19', extra_files(["SI19A.hs"]),  multimod_compile, ['SI19', '-v0'])
 test('SI20', extra_files(["SI19A.hs"]),  multimod_compile_fail, ['SI20', '-v0'])
 test('SI21', normal,  multimod_compile_fail, ['SI21', '-v0'])
+test('SI22', normal,  multimod_compile_fail, ['SI22', '-v0'])
 
