@@ -175,48 +175,55 @@ rnUntypedBracket e br_body
          -- See Note [Rebindable syntax and Template Haskell]
          unsetXOptM LangExt.RebindableSyntax $
          setStage (Brack cur_stage (RnPendingUntyped ps_var)) $
-                  rn_utbracket cur_stage br_body
+                  rn_utbracket br_body
        ; pendings <- readMutVar ps_var
        ; return (HsUntypedBracket pendings body', fvs_e)
 
        }
 
-rn_utbracket :: ThStage -> HsQuote GhcPs -> RnM (HsQuote GhcRn, FreeVars)
-rn_utbracket outer_stage br@(VarBr x flg rdr_name)
+rn_utbracket :: HsQuote GhcPs -> RnM (HsQuote GhcRn, FreeVars)
+rn_utbracket (VarBr x flg rdr_name)
   = do { name <- lookupOccRn (unLoc rdr_name)
+       ; checkThLocalName name
        ; check_namespace flg name
        ; this_mod <- getModule
+       ; dflags <- getDynFlags
 
        ; when (flg && nameIsLocalOrFrom this_mod name) $
              -- Type variables can be quoted in TH. See #5721.
-                 do { mb_bind_lvl <- lookupLocalOccThLvl_maybe name
+                 do { mb_bind_lvl <- getStageAndBindLevel name
                     ; case mb_bind_lvl of
                         { Nothing -> return ()      -- Can happen for data constructors,
                                                     -- but nothing needs to be done for them
 
-                        ; Just (top_lvl, bind_lvl)  -- See Note [Quoting names]
+                        ; Just (top_lvl, bind_lvl, use_lvl)  -- See Note [Quoting names]
+                             | isUnboundName name
+                             -> return ()
                              | isTopLevel top_lvl
+                             , xopt LangExt.PathCrossStagedPersistence dflags
                              -> when (isExternalName name) (keepAlive name)
                              | otherwise
                              -> do { traceRn "rn_utbracket VarBr"
                                       (ppr name <+> ppr bind_lvl
-                                                <+> ppr outer_stage)
-                                   ; checkTc (thLevel outer_stage + 1 == bind_lvl) $
-                                      TcRnTHError $ THNameError $ QuotedNameWrongStage br }
+                                                <+> ppr use_lvl)
+
+                                    ; checkTc (any (thLevel use_lvl ==) (Set.toList bind_lvl))
+                                              (TcRnBadlyStaged (StageCheckSplice name) bind_lvl (thLevel use_lvl))
+                                    ; when (isExternalName name) (keepAlive name) }
                         }
                     }
        ; return (VarBr x flg (noLocA name), unitFV name) }
 
-rn_utbracket _ (ExpBr x e) = do { (e', fvs) <- rnLExpr e
+rn_utbracket (ExpBr x e) = do { (e', fvs) <- rnLExpr e
                                 ; return (ExpBr x e', fvs) }
 
-rn_utbracket _ (PatBr x p)
+rn_utbracket (PatBr x p)
   = rnPat ThPatQuote p $ \ p' -> return (PatBr x p', emptyFVs)
 
-rn_utbracket _ (TypBr x t) = do { (t', fvs) <- rnLHsType TypBrCtx t
+rn_utbracket (TypBr x t) = do { (t', fvs) <- rnLHsType TypBrCtx t
                                 ; return (TypBr x t', fvs) }
 
-rn_utbracket _ (DecBrL x decls)
+rn_utbracket (DecBrL x decls)
   = do { group <- groupDecls decls
        ; gbl_env  <- getGblEnv
        ; let new_gbl_env = gbl_env { tcg_dus = emptyDUs }
@@ -242,7 +249,7 @@ rn_utbracket _ (DecBrL x decls)
                   }
            }}
 
-rn_utbracket _ (DecBrG {}) = panic "rn_ut_bracket: unexpected DecBrG"
+rn_utbracket (DecBrG {}) = panic "rn_ut_bracket: unexpected DecBrG"
 
 
 -- | Ensure that we are not using a term-level name in a type-level namespace
