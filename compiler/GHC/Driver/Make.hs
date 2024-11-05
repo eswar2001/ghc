@@ -1600,7 +1600,6 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
    = do
        let root_map = mkRootMap rootSummariesOk
        checkDuplicates root_map
-       pprTraceM "roots" (ppr root_map)
        (deps, map0) <- loopSummaries (zip (repeat zeroStage) rootSummariesOk) (M.empty, root_map)
        let closure_errs = checkHomeUnitsClosed unit_env
            unit_env = hsc_unit_env hsc_env
