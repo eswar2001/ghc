@@ -44,9 +44,9 @@ module GHC.Unit.Module.Graph
 
    , moduleGraphNodeUnitId
 
-   , ModNodeKeyWithUid(..)
+    , ModNodeKeyWithUid(..)
 
-   , ModuleStage
+   , ModuleStage(..)
    , zeroStage
    , todoStage
    , moduleStageToThLevel

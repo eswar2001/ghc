@@ -1633,9 +1633,11 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
           -- Add a dependency on the HsBoot file if it exists
           -- This gets passed to the loopImports function which just ignores it if it
           -- can't be found.
-          [(ms_unitid ms, todoStage, NoPkgQual, GWIB (noLoc $ ms_mod_name ms) IsBoot) | NotBoot <- [isBootSummary ms] ] ++
+          [(ms_unitid ms, lvl, NoPkgQual, GWIB (noLoc $ ms_mod_name ms) IsBoot) | NotBoot <- [isBootSummary ms] ] ++
           [(ms_unitid ms, offsetStage lvl st, b, c) | (st, b, c) <- msDeps ms ]
 
+        -- Hacky..
+        offsetStage lvl _ | lvl >= ModuleStage 10 || lvl <= ModuleStage (-10) = lvl
         offsetStage lvl NormalStage = lvl
         offsetStage lvl QuoteStage  = incModuleStage lvl
         offsetStage lvl SpliceStage = decModuleStage lvl
@@ -2027,9 +2029,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
 
     (mg, lookup_node) = moduleGraphNodesZero unit_state mod_graph
 
-    ttMap = mkTransDepsZero unit_state mod_graph
-
-    mk_needed_set roots = pprTrace "ttMap" (ppr ttMap) $ Set.fromList $ map fst $ pprTraceIt "mk_needed_set" $ lefts $ map node_payload $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) (map Left roots))
+    mk_needed_set roots = Set.fromList $ map fst $ pprTraceIt "mk_needed_set" $ lefts $ map node_payload $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) (map Left roots))
 
     needs_obj_set, needs_bc_set :: Set.Set ModNodeKeyWithUid
     needs_obj_set = pprTraceIt "res_needs_obj_set" $ mk_needed_set (pprTraceIt "needs_obj_set" need_obj_set)
