@@ -17,8 +17,6 @@ import Prelude ( (.), show )
 
 import Control.DeepSeq
 import GHC.Stack
-import GHC.Utils.Panic
-import GHC.Utils.Trace
 import GHC.Utils.Outputable
 
 import {-# SOURCE #-} GHC.Hs.Doc (LHsDoc) -- ROMES:TODO Discuss in #21592 whether this is parsed AST or base AST
@@ -57,7 +55,7 @@ data ImportStage = NormalStage | SpliceStage | QuoteStage deriving (Eq, Ord, Dat
 
 -- A placeholder which is used when the stage is not yet analysed.
 unanalysedStage :: HasCallStack => ImportStage
-unanalysedStage = pprTrace "unanalysedStage" callStackDoc NormalStage
+unanalysedStage = NormalStage -- pprTrace "unanalysedStage" callStackDoc NormalStage
 
 instance Outputable ImportStage where
   ppr = text . show

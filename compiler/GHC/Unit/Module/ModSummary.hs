@@ -170,8 +170,7 @@ ms_mnwib ms = GWIB (ms_mod_name ms) (isBootSummary ms)
 
 -- | Returns the dependencies of the ModSummary s.
 msDeps :: ModSummary -> ([(ImportStage, PkgQual, GenWithIsBoot (Located ModuleName))])
-msDeps s =
-           [ (unanalysedStage, NoPkgQual, d)
+msDeps s = [ (unanalysedStage, NoPkgQual, d)
            | m <- ms_home_srcimps s
            , d <- [ GWIB { gwib_mod = m, gwib_isBoot = IsBoot }
                   ]

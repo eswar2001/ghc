@@ -138,9 +138,9 @@ import qualified GHC.Tc.Utils.Monad    as TcM
 import qualified GHC.Tc.Utils.TcMType  as TcM
 import qualified GHC.Tc.Instance.Class as TcM( matchGlobalInst, ClsInstResult(..) )
 import qualified GHC.Tc.Utils.Env      as TcM
-       ( checkWellStaged, tcGetDefaultTys
+       ( tcGetDefaultTys
        , tcLookupClass, tcLookupId, tcLookupTyCon
-       , topIdLvl )
+       )
 import GHC.Tc.Zonk.Monad ( ZonkM )
 import qualified GHC.Tc.Zonk.TcType  as TcM
 import qualified GHC.Tc.Zonk.Type as TcM
@@ -163,7 +163,6 @@ import GHC.Tc.Types
 import GHC.Tc.Types.Origin
 import GHC.Tc.Types.CtLoc
 import GHC.Tc.Types.Constraint
-import GHC.Tc.Types.LclEnv
 
 import GHC.Builtin.Names ( unsatisfiableClassNameKey )
 
@@ -184,7 +183,6 @@ import GHC.Types.Var
 import GHC.Types.Var.Set
 import GHC.Types.Unique.Supply
 import GHC.Types.Unique.Set( elementOfUniqSet )
-import GHC.Types.Name.Env
 import GHC.Types.Id
 
 import GHC.Unit.Module
@@ -218,6 +216,8 @@ import GHC.Data.Graph.Directed
 import qualified Data.Set as Set
 import qualified Data.Map as Map
 import GHC.Unit.Module.Graph
+
+import Data.Bifunctor (bimap)
 
 {- *********************************************************************
 *                                                                      *
@@ -1420,8 +1420,8 @@ checkWellStagedDFun :: CtLoc -> InstanceWhat -> PredType -> TcS ()
 checkWellStagedDFun loc what pred
   = do
       mbind_lvl <- checkWellStagedInstanceWhat what
-      env <- getLclEnv
-      use_lvl <- thLevel <$> (wrapTcS $ TcM.getStage)
+      --env <- getLclEnv
+      --use_lvl <- thLevel <$> (wrapTcS $ TcM.getStage)
       case mbind_lvl of
         Just (bind_lvl, is_local) ->
           wrapTcS $ TcM.setCtLocM loc $ do
@@ -1456,56 +1456,35 @@ checkWellStagedInstanceWhat what
   | TopLevInstance { iw_dfun_id = dfun_id } <- what
     = do
         cur_mod <- extractModule <$> getGblEnv
-        gbl_env <- getGblEnv
---        pprTraceM "checkWellStaged" (ppr what)
         hsc_env <- getTopEnv
         let tg = mkTransDepsZero (hsc_units hsc_env) (mgModSummaries' (hsc_mod_graph hsc_env))
-        let lkup s = flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
+        pprTraceM "tg" (ppr tg)
+        pprTraceM "tg" (ppr $ mgModSummaries' (hsc_mod_graph hsc_env))
+        let lkup s = Set.map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id) $ flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
         let splice_lvl = lkup SpliceStage
             normal_lvl = lkup NormalStage
             quote_lvl  = lkup QuoteStage
 
             name_module = nameModule (idName dfun_id)
             instance_key = if moduleUnitId name_module `Set.member` hsc_all_home_unit_ids hsc_env
-                             then Left (ModNodeKeyWithUid (GWIB (moduleName name_module) NotBoot) zeroStage (moduleUnitId name_module), NormalStage)
+                             then Left name_module
                              else Right (moduleUnitId name_module)
 
-  {-        pprTraceM "instnace_key" (ppr instance_key)
-        pprTraceM "splice_lvl" (ppr (instance_key `Set.member` splice_lvl))
-        pprTraceM "splice_lvl" (ppr (instance_key `Set.member` normal_lvl))
-        pprTraceM "splice_lvl" (ppr (instance_key `Set.member` quote_lvl))
-        -}
         let lvls = [ 0 | instance_key `Set.member` splice_lvl]
                  ++ [ 1 | instance_key `Set.member` normal_lvl ]
                  ++ [ 2 | instance_key `Set.member` quote_lvl ]
-
+        pprTraceM "lvls" (ppr dfun_id $$ ppr splice_lvl $$ ppr normal_lvl $$ ppr quote_lvl)
         if isLocalId dfun_id
           then return $ Just ( (Set.singleton outerLevel, True) )
           else return $ Just ( Set.fromList lvls, False )
 
-
---        pprTraceM "checkWellStaged" (ppr (tcg_bind_env gbl_env))
---        pprTraceM "checkWellStaged"
---          (ppr (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id)))
---    {-
-        return $ (,isLocalId dfun_id)  <$> (lookupNameEnv   (tcg_bind_env gbl_env) (idName dfun_id))
-        return $ case  lookupNameEnv (tcg_bind_env gbl_env) (idName dfun_id) of
-          -- The instance comes from HPT imported module
-          Just res -> Just (res, isLocalId dfun_id)
-          Nothing ->
-            if isLocalId dfun_id
-              then Just ( (Set.singleton outerLevel, True) )
-              -- TODO: Instances coming from external packages also need somehow
-              -- to deal with splice imports
-              else Just ( (Set.fromList [impLevel, outerLevel], False) )
---        return $ Just (TcM.topIdLvl dfun_id)
---        -}
   | BuiltinTypeableInstance tc <- what
     = do
         cur_mod <- extractModule <$> getGblEnv
         return $ Just (if nameIsLocalOrFrom cur_mod (tyConName tc)
                         then (Set.singleton outerLevel, True)
-                        else (Set.singleton impLevel, False))
+                        -- TODO, not correct, needs similar checks to normal instances
+                        else (Set.fromList [impLevel, outerLevel], False))
   | otherwise = return Nothing
 
 {-

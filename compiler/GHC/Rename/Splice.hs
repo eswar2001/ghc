@@ -44,7 +44,7 @@ import Control.Monad    ( unless, when )
 
 import {-# SOURCE #-} GHC.Rename.Expr ( rnLExpr )
 
-import GHC.Tc.Utils.Env     ( checkWellStaged, tcMetaTy )
+import GHC.Tc.Utils.Env     ( tcMetaTy )
 
 import GHC.Driver.DynFlags
 import GHC.Data.FastString
@@ -188,6 +188,7 @@ rn_utbracket (VarBr x flg rdr_name)
        ; check_namespace flg name
        ; this_mod <- getModule
        ; dflags <- getDynFlags
+       ; env <- getGlobalRdrEnv
 
        ; when (flg && nameIsLocalOrFrom this_mod name) $
              -- Type variables can be quoted in TH. See #5721.
@@ -206,9 +207,9 @@ rn_utbracket (VarBr x flg rdr_name)
                              -> do { traceRn "rn_utbracket VarBr"
                                       (ppr name <+> ppr bind_lvl
                                                 <+> ppr use_lvl)
-
+                                    ; let mgre = lookupGRE_Name env name
                                     ; checkTc (any (thLevel use_lvl ==) (Set.toList bind_lvl))
-                                              (TcRnBadlyStaged (StageCheckSplice name) bind_lvl (thLevel use_lvl))
+                                              (TcRnBadlyStaged (StageCheckSplice name mgre) bind_lvl (thLevel use_lvl))
                                     ; when (isExternalName name) (keepAlive name) }
                         }
                     }
@@ -524,7 +525,7 @@ rnUntypedSpliceExpr splice
                 -- mod_finalizers: See Note [Delaying modFinalizers in untyped splices].
 
            -- Rename the expanded expression
-           ; (L l expr_rn, fvs) <- checkNoErrs (rnLExpr expr_ps)
+           ; (L l expr_rn, fvs) <- setXOptM LangExt.PathCrossStagedPersistence $ checkNoErrs (rnLExpr expr_ps)
 
            -- rn_splice :: HsUntypedSplice GhcRn is the original TH expression,
            --                                       before expansion
@@ -982,7 +983,7 @@ checkThLocalName name
 
   | otherwise
   = do  { --pprTraceM "checkThLocalName" (ppr name)
-        ; mb_local_use <- getStageAndBindLevel name
+          mb_local_use <- getStageAndBindLevel name
         ; case mb_local_use of {
              Nothing -> return () ;  -- Not a locally-bound thing
              Just (top_lvl, bind_lvl, use_stage) ->
@@ -990,11 +991,13 @@ checkThLocalName name
         ; cur_mod <- extractModule <$> getGblEnv
         ; let is_local = nameIsLocalOrFrom cur_mod name
        -- ; checkWellStaged (StageCheckSplice name) bind_lvl use_lvl
-        --; pprTraceM "checkThLocalName" (ppr name <+> ppr bind_lvl
-        --                                       <+> ppr use_stage
-        --                                       <+> ppr use_lvl)
+       {-} ; pprTraceM "checkThLocalName" (ppr name <+> ppr bind_lvl
+                                               <+> ppr use_stage
+                                               <+> ppr use_lvl) -}
         ; dflags <- getDynFlags
-        ; checkCrossStageLifting dflags (StageCheckSplice name) top_lvl is_local bind_lvl use_stage use_lvl name } } }
+        ; env <- getGlobalRdrEnv
+        ; let mgre = lookupGRE_Name env name
+        ; checkCrossStageLifting dflags (StageCheckSplice name mgre) top_lvl is_local bind_lvl use_stage use_lvl name } } }
 
 --------------------------------------
 checkCrossStageLifting :: DynFlags

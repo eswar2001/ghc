@@ -631,13 +631,13 @@ createBuildPlan mod_graph maybe_top_mod =
 
         -- An environment mapping a module to its hs-boot file and all nodes on the path between the two, if one exists
         boot_modules = mkModuleEnv
-          [ (ms_mod ms, (m, boot_path (ms_mod_name ms) (ms_unitid ms))) | m@(ModuleNode _ _ lvl ms) <- (mgModSummaries' mod_graph), isBootSummary ms == IsBoot]
+          [ (ms_mod ms, (m, boot_path (ms_mod_name ms) (ms_unitid ms))) | m@(ModuleNode _ _ _lvl ms) <- (mgModSummaries' mod_graph), isBootSummary ms == IsBoot]
 
         select_boot_modules :: [ModuleGraphNode] -> [ModuleGraphNode]
         select_boot_modules = mapMaybe (fmap fst . get_boot_module)
 
         get_boot_module :: ModuleGraphNode -> Maybe (ModuleGraphNode, [ModuleGraphNode])
-        get_boot_module m = case m of ModuleNode _ _ lvl ms | HsSrcFile <- ms_hsc_src ms -> lookupModuleEnv boot_modules (ms_mod ms); _ -> Nothing
+        get_boot_module m = case m of ModuleNode _ _ _lvl ms | HsSrcFile <- ms_hsc_src ms -> lookupModuleEnv boot_modules (ms_mod ms); _ -> Nothing
 
         -- Any cycles should be resolved now
         collapseSCC :: [SCC ModuleGraphNode] -> Either [ModuleGraphNode] [(Either ModuleGraphNode ModuleGraphNodeWithBootFile)]
@@ -1600,6 +1600,7 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
    = do
        let root_map = mkRootMap rootSummariesOk
        checkDuplicates root_map
+       pprTraceM "roots" (ppr root_map)
        (deps, map0) <- loopSummaries (zip (repeat zeroStage) rootSummariesOk) (M.empty, root_map)
        let closure_errs = checkHomeUnitsClosed unit_env
            unit_env = hsc_unit_env hsc_env
@@ -1673,9 +1674,13 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
              (final_deps, uids, done', summarised') <- loopImports (calcDeps lvl ms) done summarised
              -- This has the effect of finding a .hs file if we are looking at the .hs-boot file.
              (_, _, done'', summarised'') <- loopImports (maybeToList hs_file_for_boot) done' summarised'
-             loopSummaries next (M.insert k (ModuleNode final_deps uids lvl ms) done'', summarised'')
+             loopSummaries (maybeToList zero ++ next) (M.insert k (ModuleNode final_deps uids lvl ms) done'', summarised'')
           where
             k = NodeKey_Module (msKey lvl ms)
+
+            --MP: Not clear if this is needed
+            zero | lvl == zeroStage = Nothing
+                 | otherwise = Just (zeroStage, ms)
 
             hs_file_for_boot
               | HsBootFile <- ms_hsc_src ms
@@ -2053,7 +2058,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
         -- Note we don't need object code for a module if it uses TemplateHaskell itself. Only
         -- it's dependencies.
         [ (msKey lvl ms, code_stage ms)
-        | (ModuleNode deps uids lvl ms) <- mod_graph
+        | (ModuleNode _deps _uids lvl ms) <- mod_graph
         , isTemplateHaskellOrQQNonBoot ms
         , not (gopt Opt_UseBytecodeRatherThanObjects (ms_hspp_opts ms))
         ]
@@ -2061,7 +2066,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
     -- The direct dependencies of modules which require byte code
     need_bc_set =
         [ (msKey lvl ms, code_stage ms)
-        | (ModuleNode deps uids lvl ms) <- mod_graph
+        | (ModuleNode _deps _uids lvl ms) <- mod_graph
         , isTemplateHaskellOrQQNonBoot ms
         , gopt Opt_UseBytecodeRatherThanObjects (ms_hspp_opts ms)
         ]
@@ -2415,8 +2420,7 @@ getPreprocessedImports hsc_env src_fn mb_phase maybe_buf = do
       <- ExceptT $ do
           let imp_prelude = xopt LangExt.ImplicitPrelude pi_local_dflags
               popts = initParserOpts pi_local_dflags
-              splice_imports = xopt LangExt.StagedImports pi_local_dflags
-          mimps <- getImports popts imp_prelude splice_imports pi_hspp_buf pi_hspp_fn src_fn
+          mimps <- getImports popts imp_prelude pi_hspp_buf pi_hspp_fn src_fn
           return (first (mkMessages . fmap mkDriverPsHeaderMessage . getMessages) mimps)
   let rn_pkg_qual = renameRawPkgQual (hsc_unit_env hsc_env)
   let rn_imps = fmap (\(sp, pk, lmn@(L _ mn)) -> (sp, rn_pkg_qual mn pk, lmn))

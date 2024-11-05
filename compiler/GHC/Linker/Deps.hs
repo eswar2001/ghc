@@ -173,7 +173,7 @@ get_link_deps opts pls maybe_normal_osuf span mods = do
                   todo_boot_mods = [ModNodeKeyWithUid (GWIB mn NotBoot) lvl uid | NodeKey_Module (ModNodeKeyWithUid (GWIB mn IsBoot) lvl uid) <- Set.toList trans_deps]
               in make_deps_loop (found_units, deps `Set.union` found_mods) (todo_boot_mods ++ nexts)
             Nothing ->
-              let (ModNodeKeyWithUid _ lvl uid) = nk
+              let (ModNodeKeyWithUid _ _lvl uid) = nk
               in make_deps_loop (addOneToUniqDSet found_units uid, found_mods) nexts
 
     mkNk m = ModNodeKeyWithUid (GWIB (moduleName m) NotBoot) todoStage (moduleUnitId m)
@@ -181,7 +181,7 @@ get_link_deps opts pls maybe_normal_osuf span mods = do
 
     all_home_mods = [with_uid | NodeKey_Module with_uid <- Set.toList all_deps]
 
-    get_mod_info (ModNodeKeyWithUid gwib lvl uid) =
+    get_mod_info (ModNodeKeyWithUid gwib _lvl uid) =
       case lookupHug (ue_home_unit_graph unit_env) uid (gwib_mod gwib) of
         Just hmi ->
           let iface = (hm_iface hmi)

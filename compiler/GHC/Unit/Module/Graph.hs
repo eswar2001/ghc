@@ -150,9 +150,9 @@ nodeKeyUnitId (NodeKey_Module mk) = mnkUnitId mk
 nodeKeyUnitId (NodeKey_Link uid)  = uid
 
 nodeKeyLevel :: NodeKey -> ModuleStage
-nodeKeyLevel (NodeKey_Unit iud) = zeroStage
+nodeKeyLevel (NodeKey_Unit {}) = zeroStage
 nodeKeyLevel (NodeKey_Module mk) = mnkLevel mk
-nodeKeyLevel (NodeKey_Link uid) = zeroStage
+nodeKeyLevel (NodeKey_Link {}) = zeroStage
 
 nodeKeyModName :: NodeKey -> Maybe ModuleName
 nodeKeyModName (NodeKey_Module mk) = Just (gwib_mod $ mnkModuleName mk)
@@ -170,7 +170,10 @@ todoStage :: HasCallStack => ModuleStage
 todoStage -- = pprTrace "todoStage" callStackDoc
           = zeroStage
 
+moduleStageToThLevel :: ModuleStage -> Int
 moduleStageToThLevel (ModuleStage m) = m
+
+decModuleStage, incModuleStage :: ModuleStage -> ModuleStage
 incModuleStage (ModuleStage m) = ModuleStage (m + 1)
 decModuleStage (ModuleStage m) = ModuleStage (m - 1)
 
@@ -289,6 +292,7 @@ extendMG' mg = \case
 mkModuleGraph :: [ModuleGraphNode] -> ModuleGraph
 mkModuleGraph = foldr (flip extendMG') emptyMG
 
+collapseModuleGraph :: ModuleGraph -> ModuleGraph
 collapseModuleGraph = mkModuleGraph . collapseModuleGraphNodes . mgModSummaries'
 
 -- Collapse information about levels and map everything to level 0
@@ -387,7 +391,7 @@ nodeDependencies drop_hs_boot_nodes = \case
     LinkNode deps _uid -> deps
     InstantiationNode uid iuid ->
       NodeKey_Module . (\mod -> ModNodeKeyWithUid (GWIB mod NotBoot) zeroStage uid)  <$> uniqDSetToList (instUnitHoles iuid)
-    ModuleNode deps uid _lvl _ms ->
+    ModuleNode deps _ _lvl _ms ->
       map drop_hs_boot deps
   where
     -- Drop hs-boot nodes by using HsSrcFile as the key
@@ -471,7 +475,7 @@ moduleGraphNodesZero ::
   UnitState
   -> [ModuleGraphNode]
   -> (Graph ZeroSummaryNode, Either (ModNodeKeyWithUid, ImportStage) UnitId -> Maybe ZeroSummaryNode)
-moduleGraphNodesZero us summaries =
+moduleGraphNodesZero us summaries = pprTrace "mg_zero" (ppr summaries)
   (graphFromEdgedVerticesUniq nodes, lookup_node)
   where
     -- Map from module to extra boot summary dependencies which need to be merged in

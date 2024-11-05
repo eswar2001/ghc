@@ -259,12 +259,12 @@ hptInstancesBelow hsc_env uid lvl mnwib =
 
 -- | Get rules from modules "below" this one (in the dependency sense)
 hptRules :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> [CoreRule]
-hptRules = hptSomeThingsBelowUs (\lvl info -> md_rules (hm_details info)) False
+hptRules = hptSomeThingsBelowUs (\_lvl info -> md_rules (hm_details info)) False
 
 
 -- | Get annotations from modules "below" this one (in the dependency sense)
 hptAnns :: HscEnv -> Maybe (UnitId, ModuleStage, ModuleNameWithIsBoot) -> [Annotation]
-hptAnns hsc_env (Just (uid, lvl, mn)) = hptSomeThingsBelowUs (\lvl info -> md_anns (hm_details info)) False hsc_env uid lvl mn
+hptAnns hsc_env (Just (uid, lvl, mn)) = hptSomeThingsBelowUs (\_lvl info -> md_anns (hm_details info)) False hsc_env uid lvl mn
 hptAnns hsc_env Nothing = hptAllThings (md_anns . hm_details) hsc_env
 
 hptAllThings :: (HomeModInfo -> [a]) -> HscEnv -> [a]

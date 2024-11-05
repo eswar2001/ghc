@@ -101,7 +101,7 @@ module GHC.Types.Name.Reader (
         Parent(..), greParent_maybe,
         mkParent, availParent,
         ImportSpec(..), ImpDeclSpec(..), ImpItemSpec(..),
-        importSpecLoc, importSpecModule, isExplicitItem, bestImport,
+        importSpecLoc, importSpecModule, importSpecStage, isExplicitItem, bestImport,
 
         -- * Utils
         opIsAt,
@@ -2080,6 +2080,9 @@ importSpecLoc (ImpSpec _    item)   = is_iloc item
 importSpecModule :: ImportSpec -> ModuleName
 importSpecModule = moduleName . is_mod . is_decl
 
+importSpecStage :: ImportSpec -> ImportStage
+importSpecStage = is_staged . is_decl
+
 isExplicitItem :: ImpItemSpec -> Bool
 isExplicitItem ImpAll                        = False
 isExplicitItem (ImpSome {is_explicit = exp}) = exp
@@ -2117,10 +2120,16 @@ instance Outputable ImportSpec where
    ppr imp_spec
      = text "imported" <+> qual
         <+> text "from" <+> quotes (ppr (importSpecModule imp_spec))
+        <+> stage
         <+> pprLoc (importSpecLoc imp_spec)
      where
        qual | is_qual (is_decl imp_spec) = text "qualified"
             | otherwise                  = empty
+
+       stage = case importSpecStage imp_spec of
+                NormalStage -> empty
+                QuoteStage -> text "at 2"
+                SpliceStage -> text "at 0"
 
 pprLoc :: SrcSpan -> SDoc
 pprLoc (RealSrcSpan s _)  = text "at" <+> ppr s

@@ -4,7 +4,7 @@ def check_nothing(actual_file, normaliser):
 
 
 test('SI01', normal, multimod_compile, ['SI01', '-v0'])
-test('SI02', normal, compile, [''])
+test('SI02', normal, multimod_compile, ['SI02', '-v0'])
 test('SI03', [extra_files(["SI01A.hs"])], multimod_compile_fail, ['SI03', '-v0'])
 test('SI04', [extra_files(["SI01A.hs"])], multimod_compile, ['SI04', '-v0'])
 test('SI05', [extra_files(["SI01A.hs"])], multimod_compile_fail, ['SI05', '-v0'])
@@ -16,7 +16,7 @@ test('SI09', [extra_files(["ClassA.hs", "InstanceA.hs"])], multimod_compile, ['S
 test('SI10', [extra_files(["ClassA.hs", "InstanceA.hs"])], multimod_compile, ['SI10', '-v0'])
 test('SI11', normal,  compile_fail, [''])
 test('SI12', normal,  compile_fail, [''])
-test('SI13', normal,  compile, [''])
+test('SI13', normal,  multimod_compile, ['SI13', '-v0'])
 test('SI14', normal,  compile_fail, [''])
 test('SI15', normal,  compile_fail, [''])
 test('SI16', normal,  compile_fail, [''])
@@ -26,4 +26,5 @@ test('SI19', extra_files(["SI19A.hs"]),  multimod_compile, ['SI19', '-v0'])
 test('SI20', extra_files(["SI19A.hs"]),  multimod_compile_fail, ['SI20', '-v0'])
 test('SI21', normal,  multimod_compile_fail, ['SI21', '-v0'])
 test('SI22', normal,  multimod_compile_fail, ['SI22', '-v0'])
+test('SI23', extra_files(["SI23A.hs"]),  multimod_compile, ['SI23', '-v0'])
 

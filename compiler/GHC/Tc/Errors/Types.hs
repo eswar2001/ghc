@@ -6096,7 +6096,7 @@ data WrongThingSort
 
 data StageCheckReason
   = StageCheckInstance !InstanceWhat !PredType
-  | StageCheckSplice !Name
+  | StageCheckSplice !Name !(Maybe GlobalRdrElt)
 
 data UninferrableTyVarCtx
   = UninfTyCtx_ClassContext [TcType]

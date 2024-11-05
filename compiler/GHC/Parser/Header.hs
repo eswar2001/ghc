@@ -67,7 +67,6 @@ import Text.Read (readPrec)
 -- Throws a 'SourceError' if parsing fails.
 getImports :: ParserOpts   -- ^ Parser options
            -> Bool         -- ^ Implicit Prelude?
-           -> Bool         -- ^ Explicit staged imports?
            -> StringBuffer -- ^ Parse this.
            -> FilePath     -- ^ Filename the buffer came from.  Used for
                            --   reporting parse error locations.
@@ -81,7 +80,7 @@ getImports :: ParserOpts   -- ^ Parser options
                 Located ModuleName))
               -- ^ The source imports and normal imports (with optional package
               -- names from -XPackageImports), and the module name.
-getImports popts implicit_prelude staged_imports buf filename source_filename = do
+getImports popts implicit_prelude buf filename source_filename = do
   let loc  = mkRealSrcLoc (mkFastString filename) 1 1
   case unP parseHeader (initParserState popts buf loc) of
     PFailed pst ->

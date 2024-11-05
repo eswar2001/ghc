@@ -70,7 +70,6 @@ import qualified Data.Set as S
 import Data.Array.ST.Safe (STUArray)
 import Control.Monad.ST
 import Data.Array.ST.Safe (newArray, readArray, writeArray)
-import Data.Array
 
 {-
 ************************************************************************
@@ -523,6 +522,7 @@ dfs2 g vs0 = run (bounds g) $ start vs0
 reachable    :: IntGraph -> [Vertex] -> [Vertex]
 reachable g vs = preorderF (G.dfs g vs)
 
+reachableBut :: G.Graph -> [Vertex] -> [Vertex]
 reachableBut g vs = dfs2 g vs
 
 reachableGraph :: IntGraph -> IM.IntMap IS.IntSet

@@ -1671,7 +1671,7 @@ gen_Lift_binds loc (DerivInstTys{ dit_rep_tc = tycon
             as_needed    = take con_arity as_RDRs
             lift_Expr    = mk_bracket finish
             con_brack :: LHsExpr GhcPs
-            con_brack    = nlHsApps (Exact varEName) [noLocA $ HsUntypedBracket noAnn $ VarBr noExtField True (noLocA (Exact (dataConName data_con)))]
+            con_brack    = nlHsApps (Exact conEName) [noLocA $ HsUntypedBracket noAnn $ VarBr noExtField True (noLocA (Exact (dataConName data_con)))]
 
             finish = foldl' (\b1 b2 -> nlHsApps (Exact appEName) [b1, b2]) con_brack (map lift_var2 as_needed)
 

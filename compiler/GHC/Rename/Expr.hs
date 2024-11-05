@@ -310,7 +310,7 @@ finishHsVar :: LocatedA Name -> RnM (HsExpr GhcRn, FreeVars)
 -- Separated from rnExpr because it's also used
 -- when renaming infix expressions
 finishHsVar (L l name)
- = do { this_mod <- getModule
+ = do { --this_mod <- getModule
 --      ; when (nameIsLocalOrFrom this_mod name) $
       ; checkThLocalName name
       ; return (HsVar noExtField (L (l2l l) name), unitFV name) }
