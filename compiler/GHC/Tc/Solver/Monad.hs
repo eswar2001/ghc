@@ -1437,14 +1437,14 @@ checkWellStagedDFun loc what pred
 checkCrossStageClass :: DynFlags -> StageCheckReason -> Set.Set ThLevel -> ThLevel
                             -> Bool -> TcM ()
 checkCrossStageClass dflags reason bind_lvl use_lvl is_local
-  | use_lvl `Set.member` bind_lvl = return ()
-  -- With path CSP, using later than bound is fine
-  | xopt LangExt.PathCrossStagedPersistence dflags
-  , any (use_lvl >=) bind_lvl  = return ()
   -- If the Id is imported, ie global, then allow with PathCrossStagedPersist
   | not is_local
   , xopt LangExt.PathCrossStagedPersistence dflags
   = return ()
+  | use_lvl `Set.member` bind_lvl = return ()
+  -- With path CSP, using later than bound is fine
+  | xopt LangExt.PathCrossStagedPersistence dflags
+  , any (use_lvl >=) bind_lvl  = return ()
   | otherwise = TcM.failWithTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
 
@@ -1458,8 +1458,6 @@ checkWellStagedInstanceWhat what
         cur_mod <- extractModule <$> getGblEnv
         hsc_env <- getTopEnv
         let tg = mkTransDepsZero (hsc_units hsc_env) (mgModSummaries' (hsc_mod_graph hsc_env))
-        pprTraceM "tg" (ppr tg)
-        pprTraceM "tg" (ppr $ mgModSummaries' (hsc_mod_graph hsc_env))
         let lkup s = Set.map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id) $ flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
         let splice_lvl = lkup SpliceStage
             normal_lvl = lkup NormalStage
@@ -1473,7 +1471,6 @@ checkWellStagedInstanceWhat what
         let lvls = [ 0 | instance_key `Set.member` splice_lvl]
                  ++ [ 1 | instance_key `Set.member` normal_lvl ]
                  ++ [ 2 | instance_key `Set.member` quote_lvl ]
-        pprTraceM "lvls" (ppr dfun_id $$ ppr splice_lvl $$ ppr normal_lvl $$ ppr quote_lvl)
         if isLocalId dfun_id
           then return $ Just ( (Set.singleton outerLevel, True) )
           else return $ Just ( Set.fromList lvls, False )
