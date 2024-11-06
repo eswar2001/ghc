@@ -1673,7 +1673,7 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
              (final_deps, uids, done', summarised') <- loopImports (calcDeps lvl ms) done summarised
              -- This has the effect of finding a .hs file if we are looking at the .hs-boot file.
              (_, _, done'', summarised'') <- loopImports (maybeToList hs_file_for_boot) done' summarised'
-             loopSummaries (maybeToList zero ++ next) (M.insert k (ModuleNode final_deps uids lvl ms) done'', summarised'')
+             loopSummaries (maybeToList zero ++ next) (M.insert k (ModuleNode final_deps (ordNub uids) lvl ms) done'', summarised'')
           where
             k = NodeKey_Module (msKey lvl ms)
 

@@ -122,7 +122,7 @@ moduleGraphNodeUnitId mgn =
 instance Outputable ModuleGraphNode where
   ppr = \case
     InstantiationNode _ iuid -> ppr iuid
-    ModuleNode nks _ lvl ms -> ppr (msKey lvl ms) <+> ppr nks
+    ModuleNode nks uids lvl ms -> ppr (msKey lvl ms) <+> ppr nks <+> ppr uids
     LinkNode uid _     -> text "LN:" <+> ppr uid
 
 instance Eq ModuleGraphNode where
@@ -475,7 +475,7 @@ moduleGraphNodesZero ::
   UnitState
   -> [ModuleGraphNode]
   -> (Graph ZeroSummaryNode, Either (ModNodeKeyWithUid, ImportStage) UnitId -> Maybe ZeroSummaryNode)
-moduleGraphNodesZero us summaries = pprTrace "mg_zero" (ppr summaries)
+moduleGraphNodesZero us summaries =
   (graphFromEdgedVerticesUniq nodes, lookup_node)
   where
     -- Map from module to extra boot summary dependencies which need to be merged in
@@ -494,7 +494,7 @@ moduleGraphNodesZero us summaries = pprTrace "mg_zero" (ppr summaries)
              Just $ DigraphNode (Right u) key (mapMaybe lookup_key $ map Right us)
            normal_case _ = Nothing
 
-    only_module_deps ds = pprTraceIt "only_module" [ k | NodeKey_Module k <- ds ]
+    only_module_deps ds = [ k | NodeKey_Module k <- ds ]
 
     jimmy_lvl l s = case s of
                       NormalStage -> l
@@ -511,7 +511,7 @@ moduleGraphNodesZero us summaries = pprTrace "mg_zero" (ppr summaries)
         go cache [] = cache
         go cache (u:uxs) =
           case Map.lookup u cache of
-            Just {} -> cache
+            Just {} -> go cache uxs
             Nothing -> case unitDepends <$> lookupUnitId us u of
                           Just us -> go (go (Map.insert u us cache) us) uxs
                           Nothing -> panic "bad"

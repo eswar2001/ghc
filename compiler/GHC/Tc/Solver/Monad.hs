@@ -214,10 +214,11 @@ import GHC.Data.Graph.Directed
 #endif
 
 import qualified Data.Set as Set
-import qualified Data.Map as Map
 import GHC.Unit.Module.Graph
 
 import Data.Bifunctor (bimap)
+import GHC.Data.Graph.Directed
+import GHC.Data.Maybe
 
 {- *********************************************************************
 *                                                                      *
@@ -1457,8 +1458,11 @@ checkWellStagedInstanceWhat what
     = do
         cur_mod <- extractModule <$> getGblEnv
         hsc_env <- getTopEnv
-        let tg = mkTransDepsZero (hsc_units hsc_env) (mgModSummaries' (hsc_mod_graph hsc_env))
-        let lkup s = Set.map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id) $ flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
+        let (mg, lookup_node) = moduleGraphNodesZero (hsc_units hsc_env) (mgModSummaries' $ hsc_mod_graph hsc_env)
+
+        let lkup :: ImportStage -> Set.Set (Either Module UnitId)
+            lkup s = Set.fromList $ map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id . node_payload) $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) [Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)])
+--        let lkup s = Set.map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id) $ flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
         let splice_lvl = lkup SpliceStage
             normal_lvl = lkup NormalStage
             quote_lvl  = lkup QuoteStage
@@ -1467,7 +1471,6 @@ checkWellStagedInstanceWhat what
             instance_key = if moduleUnitId name_module `Set.member` hsc_all_home_unit_ids hsc_env
                              then Left name_module
                              else Right (moduleUnitId name_module)
-
         let lvls = [ 0 | instance_key `Set.member` splice_lvl]
                  ++ [ 1 | instance_key `Set.member` normal_lvl ]
                  ++ [ 2 | instance_key `Set.member` quote_lvl ]
