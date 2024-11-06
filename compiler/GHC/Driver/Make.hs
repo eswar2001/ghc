@@ -2033,10 +2033,10 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
 
     (mg, lookup_node) = moduleGraphNodesZero unit_state mod_graph
 
-    mk_needed_set roots = Set.fromList $ map fst $ pprTraceIt "mk_needed_set" $ lefts $ map node_payload $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) (map Left roots))
+    mk_needed_set roots = Set.fromList $ map fst $ lefts $ map node_payload $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) (map Left roots))
 
     needs_obj_set, needs_bc_set :: Set.Set ModNodeKeyWithUid
-    needs_obj_set = pprTraceIt "res_needs_obj_set" $ mk_needed_set (pprTraceIt "needs_obj_set" need_obj_set)
+    needs_obj_set = mk_needed_set need_obj_set
 
     needs_bc_set = mk_needed_set need_bc_set
 
