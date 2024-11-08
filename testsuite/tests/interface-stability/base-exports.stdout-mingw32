@@ -10880,7 +10880,7 @@ module System.Posix.Types where
 
 
 module System.Timeout where
-  -- Safety: Safe
+  -- Safety: Trustworthy
   type Timeout :: *
   newtype Timeout = ...
   timeout :: forall a. GHC.Types.Int -> GHC.Types.IO a -> GHC.Types.IO (GHC.Internal.Maybe.Maybe a)
@@ -11993,7 +11993,7 @@ instance GHC.Internal.Exception.Type.Exception GHC.Internal.Control.Exception.Ba
 instance GHC.Internal.Exception.Type.Exception GHC.Internal.Data.Dynamic.Dynamic -- Defined in ‘GHC.Internal.Data.Dynamic’
 instance [safe] GHC.Internal.Exception.Type.Exception ghc-internal-9.1100.0:GHC.Internal.IO.Handle.Lock.Common.FileLockingNotSupported -- Defined in ‘ghc-internal-9.1100.0:GHC.Internal.IO.Handle.Lock.Common’
 instance GHC.Internal.Exception.Type.Exception GHC.Internal.IOPort.IOPortException -- Defined in ‘GHC.Internal.IOPort’
-instance [safe] GHC.Internal.Exception.Type.Exception System.Timeout.Timeout -- Defined in ‘System.Timeout’
+instance GHC.Internal.Exception.Type.Exception System.Timeout.Timeout -- Defined in ‘System.Timeout’
 instance forall a k (b :: k). GHC.Internal.Float.Floating a => GHC.Internal.Float.Floating (GHC.Internal.Data.Functor.Const.Const a b) -- Defined in ‘GHC.Internal.Data.Functor.Const’
 instance forall a. GHC.Internal.Float.RealFloat a => GHC.Internal.Float.Floating (Data.Complex.Complex a) -- Defined in ‘Data.Complex’
 instance forall k1 k2 (f :: k1 -> *) (g :: k2 -> k1) (a :: k2). GHC.Internal.Float.Floating (f (g a)) => GHC.Internal.Float.Floating (Data.Functor.Compose.Compose f g a) -- Defined in ‘Data.Functor.Compose’
@@ -12819,7 +12819,7 @@ instance forall (c :: GHC.Types.Char). GHC.Internal.Show.Show (GHC.Internal.Type
 instance forall (s :: GHC.Types.Symbol). GHC.Internal.Show.Show (GHC.Internal.TypeLits.SSymbol s) -- Defined in ‘GHC.Internal.TypeLits’
 instance GHC.Internal.Show.Show GHC.Internal.TypeLits.SomeChar -- Defined in ‘GHC.Internal.TypeLits’
 instance GHC.Internal.Show.Show GHC.Internal.TypeLits.SomeSymbol -- Defined in ‘GHC.Internal.TypeLits’
-instance [safe] GHC.Internal.Show.Show System.Timeout.Timeout -- Defined in ‘System.Timeout’
+instance GHC.Internal.Show.Show System.Timeout.Timeout -- Defined in ‘System.Timeout’
 instance GHC.Internal.Show.Show GHC.Internal.Text.Read.Lex.Lexeme -- Defined in ‘GHC.Internal.Text.Read.Lex’
 instance GHC.Internal.Show.Show GHC.Internal.Text.Read.Lex.Number -- Defined in ‘GHC.Internal.Text.Read.Lex’
 instance GHC.Internal.StaticPtr.IsStatic GHC.Internal.StaticPtr.StaticPtr -- Defined in ‘GHC.Internal.StaticPtr’
@@ -13017,7 +13017,7 @@ instance forall (c :: GHC.Types.Char). GHC.Classes.Eq (GHC.Internal.TypeLits.SCh
 instance forall (s :: GHC.Types.Symbol). GHC.Classes.Eq (GHC.Internal.TypeLits.SSymbol s) -- Defined in ‘GHC.Internal.TypeLits’
 instance GHC.Classes.Eq GHC.Internal.TypeLits.SomeChar -- Defined in ‘GHC.Internal.TypeLits’
 instance GHC.Classes.Eq GHC.Internal.TypeLits.SomeSymbol -- Defined in ‘GHC.Internal.TypeLits’
-instance [safe] GHC.Classes.Eq System.Timeout.Timeout -- Defined in ‘System.Timeout’
+instance GHC.Classes.Eq System.Timeout.Timeout -- Defined in ‘System.Timeout’
 instance GHC.Classes.Eq GHC.Internal.Text.Read.Lex.Lexeme -- Defined in ‘GHC.Internal.Text.Read.Lex’
 instance GHC.Classes.Eq GHC.Internal.Text.Read.Lex.Number -- Defined in ‘GHC.Internal.Text.Read.Lex’
 instance forall a. GHC.Classes.Ord a => GHC.Classes.Ord (GHC.Internal.Base.NonEmpty a) -- Defined in ‘GHC.Internal.Base’
