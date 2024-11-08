@@ -61,7 +61,7 @@ typedef struct {
     StringIdx src_span;
 } IpeBufferEntry;
 
-GHC_STATIC_ASSERT(sizeof(IpeBufferEntry) % (WORD_SIZE_IN_BITS / 8) == 0, "sizeof(IpeBufferEntry) must be a multiple of the word size");
+static_assert(sizeof(IpeBufferEntry) % (WORD_SIZE_IN_BITS / 8) == 0, "sizeof(IpeBufferEntry) must be a multiple of the word size");
 
 typedef struct IpeBufferListNode_ {
     struct IpeBufferListNode_ *next;

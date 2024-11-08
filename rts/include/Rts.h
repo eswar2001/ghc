@@ -29,7 +29,7 @@ extern "C" {
 #include <windows.h>
 #endif
 
-/* For _Static_assert */
+/* For static_assert */
 #include <assert.h>
 
 #if !defined(IN_STG_CODE)
@@ -54,39 +54,15 @@ extern "C" {
 #include "rts/Types.h"
 #include "rts/Time.h"
 
-#if __GNUC__ >= 3
-#define ATTRIBUTE_ALIGNED(n) __attribute__((aligned(n)))
-#else
-#define ATTRIBUTE_ALIGNED(n) /*nothing*/
-#endif
 
 // Symbols that are extern, but private to the RTS, are declared
 // with visibility "hidden" to hide them outside the RTS shared
 // library.
-#if defined(HAS_VISIBILITY_HIDDEN)
-#define RTS_PRIVATE  GNUC3_ATTRIBUTE(visibility("hidden"))
-#else
-#define RTS_PRIVATE  /* disabled: RTS_PRIVATE */
-#endif
+#define RTS_PRIVATE  __attribute__((visibility("hidden")))
 
-#if __GNUC__ >= 4
 #define RTS_UNLIKELY(p) __builtin_expect((p),0)
-#else
-#define RTS_UNLIKELY(p) (p)
-#endif
 
-#if __GNUC__ >= 4
 #define RTS_LIKELY(p) __builtin_expect(!!(p), 1)
-#else
-#define RTS_LIKELY(p) (p)
-#endif
-
-/* __builtin_unreachable is supported since GNU C 4.5 */
-#if __GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 5)
-#define RTS_UNREACHABLE __builtin_unreachable()
-#else
-#define RTS_UNREACHABLE abort()
-#endif
 
 /* Prefetch primitives */
 #define prefetchForRead(ptr) __builtin_prefetch(ptr, 0)
@@ -165,15 +141,6 @@ void _warnFail(const char *filename, unsigned int linenum);
 #define WARN(predicate)                       \
     do { (void) sizeof(predicate); } while(0)
 #endif /* DEBUG */
-
-#if __STDC_VERSION__ >= 201112L
-// `_Static_assert` is provided by C11 but is deprecated and replaced by
-// `static_assert` in C23. Perhaps some day we should instead use the latter.
-// See #22777.
-#define GHC_STATIC_ASSERT(x, msg) _Static_assert((x), msg)
-#else
-#define GHC_STATIC_ASSERT(x, msg)
-#endif
 
 /*
  * Use this on the RHS of macros which expand to nothing
@@ -377,17 +344,8 @@ TICK_VAR(2)
    Useful macros and inline functions
    -------------------------------------------------------------------------- */
 
-#if defined(__GNUC__)
-#define SUPPORTS_TYPEOF
-#endif
-
-#if defined(SUPPORTS_TYPEOF)
 #define stg_min(a,b) ({typeof(a) _a = (a), _b = (b); _a <= _b ? _a : _b; })
 #define stg_max(a,b) ({typeof(a) _a = (a), _b = (b); _a <= _b ? _b : _a; })
-#else
-#define stg_min(a,b) ((a) <= (b) ? (a) : (b))
-#define stg_max(a,b) ((a) <= (b) ? (b) : (a))
-#endif
 
 /* -------------------------------------------------------------------------- */
 

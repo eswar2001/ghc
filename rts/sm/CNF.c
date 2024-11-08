@@ -229,7 +229,7 @@ compactAllocateBlockInternal(Capability            *cap,
     default:
         ASSERT(!"code should not be reached");
 #if !defined(DEBUG)
-        RTS_UNREACHABLE;
+        __builtin_unreachable();
 #endif
     }
     RELEASE_SM_LOCK;

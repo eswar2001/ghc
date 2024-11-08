@@ -49,7 +49,7 @@
 
 #define PAGESIZE (0x10000)
 
-GHC_STATIC_ASSERT(MBLOCK_SIZE == PAGESIZE, "MBLOCK_SIZE must be equal to wasm page size");
+static_assert(MBLOCK_SIZE == PAGESIZE, "MBLOCK_SIZE must be equal to wasm page size");
 
 void osMemInit(void)
 {

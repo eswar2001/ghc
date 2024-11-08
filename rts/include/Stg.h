@@ -31,8 +31,8 @@
 #define __STDC_VERSION__ 0
 #endif
 
-#if !(__STDC_VERSION__ >= 199901L) && !(__cplusplus >= 201103L)
-# error __STDC_VERSION__ does not advertise C99, C++11 or later
+#if !(__STDC_VERSION__ >= 201112L) && !(__cplusplus >= 201103L)
+# error __STDC_VERSION__ does not advertise C11, C++11 or later
 #endif
 
 /*
@@ -48,10 +48,6 @@
  */
 #if !defined(IN_STG_CODE)
 # define IN_STG_CODE 1
-
-// Turn on C99 for .hc code.  This gives us the INFINITY and NAN
-// constants from math.h, which we occasionally need to use in .hc (#1861)
-# define _ISOC99_SOURCE
 
 // We need _BSD_SOURCE so that math.h defines things like gamma
 // on Linux
@@ -128,67 +124,42 @@
 #  define EXTERN_INLINE static inline
 # endif
 
-/*
- * GCC attributes
- */
-#if defined(__GNUC__)
-#define GNU_ATTRIBUTE(at) __attribute__((at))
-#else
-#define GNU_ATTRIBUTE(at)
-#endif
-
-#if __GNUC__ >= 3
-#define GNUC3_ATTRIBUTE(at) __attribute__((at))
-#else
-#define GNUC3_ATTRIBUTE(at)
-#endif
-
 /* Used to mark a switch case that falls-through */
 #if (defined(__GNUC__) && __GNUC__ >= 7)
 // N.B. Don't enable fallthrough annotations when compiling with Clang.
 // Apparently clang doesn't enable implicitly fallthrough warnings by default
 // http://llvm.org/viewvc/llvm-project?revision=167655&view=revision
 // when compiling C and the attribute cause warnings of their own (#16019).
-#define FALLTHROUGH GNU_ATTRIBUTE(fallthrough)
+#define FALLTHROUGH __attribute__((fallthrough))
 #else
 #define FALLTHROUGH ((void)0)
 #endif /* __GNUC__ >= 7 */
 
-#if !defined(DEBUG) && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 3))
+#if !defined(DEBUG)
 #define GNUC_ATTR_HOT __attribute__((hot))
 #else
 #define GNUC_ATTR_HOT /* nothing */
 #endif
 
-#define STG_UNUSED    GNUC3_ATTRIBUTE(__unused__)
-#define STG_USED      GNUC3_ATTRIBUTE(__used__)
-#define STG_WARN_UNUSED_RESULT GNUC3_ATTRIBUTE(warn_unused_result)
+#define STG_UNUSED    __attribute__((__unused__))
+#define STG_USED      __attribute__((__used__))
+#define STG_WARN_UNUSED_RESULT __attribute__((warn_unused_result))
 
 /* Prevent functions from being optimized.
    See Note [Windows Stack allocations] */
 #if defined(__clang__)
 #define STG_NO_OPTIMIZE __attribute__((optnone))
-#elif defined(__GNUC__) || defined(__GNUG__)
-#define STG_NO_OPTIMIZE __attribute__((optimize("O0")))
 #else
-#define STG_NO_OPTIMIZE /* nothing */
+#define STG_NO_OPTIMIZE __attribute__((optimize("O0")))
 #endif
 
-// Mark a function as accepting a printf-like format string.
-#if !defined(__GNUC__) && defined(mingw32_HOST_OS)
-/* On Win64, if we say "printf" then gcc thinks we are going to use
-   MS format specifiers like %I64d rather than %llu */
-#define STG_PRINTF_ATTR(fmt_arg, rest) GNUC3_ATTRIBUTE(format(gnu_printf, fmt_arg, rest))
-#else
-/* However, on OS X, "gnu_printf" isn't recognised */
-#define STG_PRINTF_ATTR(fmt_arg, rest) GNUC3_ATTRIBUTE(format(printf, fmt_arg, rest))
-#endif
+#define STG_PRINTF_ATTR(fmt_arg, rest) __attribute__((format(printf, fmt_arg, rest)))
 
 #define STG_RESTRICT __restrict__
 
-#define STG_NORETURN GNU_ATTRIBUTE(__noreturn__)
+#define STG_NORETURN __attribute__((__noreturn__))
 
-#define STG_MALLOC GNUC3_ATTRIBUTE(__malloc__)
+#define STG_MALLOC __attribute__((__malloc__))
 
 /* Instead of relying on GCC version checks to expand attributes,
  * use `__has_attribute` which is supported by GCC >= 5 and Clang. Hence, the
@@ -204,13 +175,9 @@
 # define stg__has_attribute(attr) (0)
 #endif
 
-#ifdef __GNUC__
 # define STG_GNUC_GUARD_VERSION(major, minor) \
     ((__GNUC__ > (major)) || \
       ((__GNUC__ == (major)) && (__GNUC_MINOR__ >= (minor))))
-#else
-# define STG_GNUC_GUARD_VERSION(major, minor) (0)
-#endif
 
 /*
  * The versions of the `__malloc__` attribute which take arguments are only
@@ -280,8 +247,8 @@ typedef StgFunPtr       F_;
 #define EB_(X)    extern const char X[]
 #define IB_(X)    static const char X[]
 /* static (non-heap) closures (requires alignment for pointer tagging): */
-#define EC_(X)    extern       StgWordArray (X) GNU_ATTRIBUTE(aligned (SIZEOF_VOID_P))
-#define IC_(X)    static       StgWordArray (X) GNU_ATTRIBUTE(aligned (SIZEOF_VOID_P))
+#define EC_(X)    extern       StgWordArray (X) __attribute__((aligned (SIZEOF_VOID_P)))
+#define IC_(X)    static       StgWordArray (X) __attribute__((aligned (SIZEOF_VOID_P)))
 /* writable data (does not require alignment): */
 #define ERW_(X)   extern       StgWordArray (X)
 #define IRW_(X)   static       StgWordArray (X)
@@ -289,7 +256,7 @@ typedef StgFunPtr       F_;
 #define ERO_(X)   extern const StgWordArray (X)
 #define IRO_(X)   static const StgWordArray (X)
 /* stg-native functions: */
-#define IF_(f)    static StgFunPtr GNUC3_ATTRIBUTE(used) f(void)
+#define IF_(f)    static StgFunPtr __attribute__((used)) f(void)
 #define FN_(f)           StgFunPtr f(void)
 #define EF_(f)           StgFunPtr f(void) /* External Cmm functions */
 /* foreign functions: */

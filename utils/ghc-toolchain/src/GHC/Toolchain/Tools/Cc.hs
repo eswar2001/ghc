@@ -11,7 +11,7 @@ module GHC.Toolchain.Tools.Cc
     , compileC
     , compileAsm
     , addPlatformDepCcFlags
-    , checkC99Support
+    , checkC11Support
     ) where
 
 import Control.Monad
@@ -51,9 +51,9 @@ findCc archOs llvmTarget progOpt = do
     cc1 <- ignoreUnusedArgs cc0
     cc2 <- ccSupportsTarget archOs llvmTarget cc1
     checking "whether Cc works" $ checkCcWorks cc2
-    cc3 <- oneOf "cc doesn't support C99" $ map checkC99Support
+    cc3 <- oneOf "cc doesn't support C11" $ map checkC11Support
         [ cc2
-        , cc2 & _ccFlags %++ "-std=gnu99"
+        , cc2 & _ccFlags %++ "-std=gnu11"
         ]
     checkCcSupportsExtraViaCFlags cc3
     return cc3
@@ -88,13 +88,13 @@ ccSupportsTarget archOs target cc =
     checking "whether Cc supports --target" $
     supportsTarget archOs _ccProgram checkCcWorks target cc
 
-checkC99Support :: Cc -> M Cc
-checkC99Support cc = checking "for C99 support" $ withTempDir $ \dir -> do
+checkC11Support :: Cc -> M Cc
+checkC11Support cc = checking "for C11 support" $ withTempDir $ \dir -> do
     let test_o = dir </> "test.o"
     compileC cc test_o $ unlines
         [ "#include <stdio.h>"
-        , "#if !defined __STDC_VERSION__ || __STDC_VERSION__ < 199901L"
-        , "# error \"Compiler does not advertise C99 conformance\""
+        , "#if !defined __STDC_VERSION__ || __STDC_VERSION__ < 201112L"
+        , "# error \"Compiler does not advertise C11 conformance\""
         , "#endif"
         ]
     return cc

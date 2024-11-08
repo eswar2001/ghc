@@ -21,7 +21,7 @@
 #    define DLL_IMPORT_DATA_REF(x) (_imp__##x)
 #    define DLL_IMPORT_DATA_VARNAME(x) *_imp__##x
 #  endif
-#  if __GNUC__ && !defined(__declspec)
+#  if !defined(__declspec)
 #    define DLLIMPORT
 #  else
 #    define DLLIMPORT __declspec(dllimport)

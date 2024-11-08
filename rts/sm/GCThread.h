@@ -101,7 +101,7 @@ typedef struct gen_workspace_ {
     bdescr *     part_list;
     StgWord      n_part_blocks;      // count of above
     StgWord      n_part_words;
-} gen_workspace ATTRIBUTE_ALIGNED(64);
+} gen_workspace __attribute__((aligned(64)));
 // align so that computing gct->gens[n] is a shift, not a multiply
 // fails if the size is <64, which is why we need the pad above
 

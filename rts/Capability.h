@@ -188,12 +188,12 @@ struct Capability_ {
     StgTRecHeader *free_trec_headers;
     uint32_t transaction_tokens;
 } // typedef Capability is defined in RtsAPI.h
-  ATTRIBUTE_ALIGNED(CAPABILITY_ALIGNMENT)
+  __attribute__((aligned(CAPABILITY_ALIGNMENT)))
 ;
 
 // We allocate arrays of Capabilities therefore we must ensure that the size is
 // a multiple of the claimed alignment
-GHC_STATIC_ASSERT(sizeof(struct Capability_) % CAPABILITY_ALIGNMENT == 0, "Capability size does not match cache size");
+static_assert(sizeof(struct Capability_) % CAPABILITY_ALIGNMENT == 0, "Capability size does not match cache size");
 
 #if defined(THREADED_RTS)
 #define ASSERT_TASK_ID(task) ASSERT(task->id == osThreadId())
