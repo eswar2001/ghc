@@ -220,11 +220,6 @@ data EpAnnLam = EpAnnLam
 instance NoAnn EpAnnLam where
   noAnn = EpAnnLam noAnn noAnn
 
-data EpAnnUnboundVar = EpAnnUnboundVar
-     { hsUnboundBackquotes :: (EpToken "`", EpToken "`")
-     , hsUnboundHole       :: EpToken "_"
-     } deriving Data
-
 -- Record selectors at parse time are HsVar; they convert to HsRecSel
 -- on renaming.
 type instance XRecSel              GhcPs = DataConCantHappen
@@ -239,15 +234,12 @@ type instance XOverLabel     GhcTc = DataConCantHappen
 
 -- ---------------------------------------------------------------------
 
-type instance XVar           (GhcPass _) = NoExtField
+data HsVarOcc a = Bound | Unbound a
+  deriving Data
 
-type instance XUnboundVar    GhcPs = Maybe EpAnnUnboundVar
-type instance XUnboundVar    GhcRn = NoExtField
-type instance XUnboundVar    GhcTc = HoleExprRef
-  -- We really don't need the whole HoleExprRef; just the IORef EvTerm
-  -- would be enough. But then deriving a Data instance becomes impossible.
-  -- Much, much easier just to define HoleExprRef with a Data instance and
-  -- store the whole structure.
+type instance XVar GhcPs = NoExtField
+type instance XVar GhcRn = HsVarOcc ()
+type instance XVar GhcTc = HsVarOcc HoleExprRef
 
 type instance XIPVar         GhcPs = NoExtField
 type instance XIPVar         GhcRn = NoExtField
@@ -414,7 +406,7 @@ type instance Anno [LocatedA ((StmtLR (GhcPass pl) (GhcPass pr) (LocatedA (body 
 type instance Anno (StmtLR GhcRn GhcRn (LocatedA (body GhcRn))) = SrcSpanAnnA
 
 arrowToHsExpr :: HsArrowOf (LocatedA (HsExpr GhcRn)) GhcRn -> LocatedA (HsExpr GhcRn)
-arrowToHsExpr = expandHsArrow (HsVar noExtField)
+arrowToHsExpr = expandHsArrow (HsVar Bound)
 
 data AnnExplicitSum
   = AnnExplicitSum {
@@ -698,7 +690,6 @@ ppr_lexpr e = ppr_expr (unLoc e)
 ppr_expr :: forall p. (OutputableBndrId p)
          => HsExpr (GhcPass p) -> SDoc
 ppr_expr (HsVar _ (L _ v))   = pprPrefixOcc v
-ppr_expr (HsUnboundVar _ uv) = pprPrefixOcc uv
 ppr_expr (HsIPVar _ v)       = ppr v
 ppr_expr (HsOverLabel s l) = case ghcPass @p of
                GhcPs -> helper s
@@ -957,7 +948,6 @@ instance Outputable XXExprGhcTc where
 
 ppr_infix_expr :: forall p. (OutputableBndrId p) => HsExpr (GhcPass p) -> Maybe SDoc
 ppr_infix_expr (HsVar _ (L _ v))    = Just (pprInfixOcc v)
-ppr_infix_expr (HsUnboundVar _ occ) = Just (pprInfixOcc occ)
 ppr_infix_expr (XExpr x)            = case ghcPass @p of
                                         GhcRn -> ppr_infix_expr_rn x
                                         GhcTc -> ppr_infix_expr_tc x
@@ -1023,7 +1013,6 @@ hsExprNeedsParens prec = go
   where
     go :: HsExpr (GhcPass p) -> Bool
     go (HsVar{})                      = False
-    go (HsUnboundVar{})               = False
     go (HsIPVar{})                    = False
     go (HsOverLabel{})                = False
     go (HsLit _ l)                    = hsLitNeedsParens prec l
@@ -1120,7 +1109,6 @@ isAtomicHsExpr (HsLit {})        = True
 isAtomicHsExpr (HsOverLit {})    = True
 isAtomicHsExpr (HsIPVar {})      = True
 isAtomicHsExpr (HsOverLabel {})  = True
-isAtomicHsExpr (HsUnboundVar {}) = True
 isAtomicHsExpr (XExpr x)
   | GhcTc <- ghcPass @p          = go_x_tc x
   | GhcRn <- ghcPass @p          = go_x_rn x

@@ -561,7 +561,7 @@ checkCanonicalInstances cls poly_ty mbinds = do
                                              , m_grhss = grhss })])}
         | GRHSs _ [L _ (GRHS _ [] body)] lbinds <- grhss
         , EmptyLocalBinds _ <- lbinds
-        , HsVar _ lrhsName  <- unLoc body  = Just (unLoc lrhsName)
+        , HsVar Bound lrhsName  <- unLoc body  = Just (unLoc lrhsName)
     isAliasMG _ = Nothing
 
     addWarnNonCanonicalMonoid reason =
@@ -1268,7 +1268,7 @@ validRuleLhs foralls lhs
                                                       `mplus` checkl_e e2
     check (HsApp _ e1 e2)                 = checkl e1 `mplus` checkl_e e2
     check (HsAppType _ e _)               = checkl e
-    check (HsVar _ lv)
+    check (HsVar Bound lv)
       | (unLoc lv) `notElem` foralls      = Nothing
     -- See Note [Parens on the LHS of a RULE]
     check (HsPar _ e)                     = checkl e
@@ -1299,8 +1299,9 @@ badRuleLhsErr name lhs bad_e
   = TcRnIllegalRuleLhs errReason name lhs bad_e
   where
     errReason = case bad_e of
-      HsUnboundVar _ uv ->
-        UnboundVariable uv $ notInScopeErr WL_Global uv
+      HsVar (Unbound ()) (L _ uv) ->
+        UnboundVariable (getUnboundRdrName uv) $ notInScopeErr WL_Global (getUnboundRdrName uv)
+      -- TODO: Are holes possible here?
       _ -> IllegalExpression
 
 {- **************************************************************

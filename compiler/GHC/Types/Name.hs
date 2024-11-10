@@ -44,6 +44,7 @@ module GHC.Types.Name (
         BuiltInSyntax(..),
 
         -- ** Creating 'Name's
+        mkUnboundName_,
         mkSystemName, mkSystemNameAt,
         mkInternalName, mkClonedInternalName, mkDerivedInternalName,
         mkSystemVarName, mkSysTvName,
@@ -61,6 +62,7 @@ module GHC.Types.Name (
         pprName,
         nameSrcLoc, nameSrcSpan, pprNameDefnLoc, pprDefinedAt,
         pprFullName, pprTickyName,
+        getUnboundName_,
 
         -- ** Predicates on 'Name's
         isSystemName, isInternalName, isExternalName,
@@ -330,6 +332,18 @@ isInternalName name = not (isExternalName name)
 isHoleName :: Name -> Bool
 isHoleName = isHoleModule . nameModule
 
+getUnboundName_ :: Name -> (Maybe ModuleName, OccName)
+getUnboundName_ name =
+  ( case nameModule_maybe name of
+    Nothing -> Nothing
+    Just nm -> -- TODO: Should we check this or?
+               -- if isHoleName nm
+               -- then Just $ moduleName nm
+               -- else error "Internal compiler error: expected qualified unbound name got ..."
+      Just $ moduleName nm
+  , occName name
+  )
+
 -- | Will the 'Name' come from a dynamically linked package?
 isDynLinkName :: Platform -> Module -> Name -> Bool
 isDynLinkName platform this_mod name
@@ -495,6 +509,15 @@ isSystemName _                        = False
 *                                                                      *
 ************************************************************************
 -}
+
+
+mkUnboundName_ :: Unique -> Maybe ModuleName -> OccName -> SrcSpan -> Name
+mkUnboundName_ uniq mmoduleName occ loc =
+  Name { n_uniq = uniq
+       , n_sort = maybe Internal (External . mkHoleModule) mmoduleName
+       , n_occ = occ
+       , n_loc = loc
+       }
 
 -- | Create a name which is (for now at least) local to the current module and hence
 -- does not need a 'Module' to disambiguate it from other 'Name's

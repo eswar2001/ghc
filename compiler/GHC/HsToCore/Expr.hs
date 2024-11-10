@@ -268,13 +268,13 @@ dsLExpr (L loc e) = putSrcSpanDsA loc $ dsExpr e
 
 -- | Desugar a typechecked expression.
 dsExpr :: HsExpr GhcTc -> DsM CoreExpr
-
-dsExpr e@(HsVar {})                 = dsApp e
+dsExpr e@(HsVar Bound _)               = dsApp e
 dsExpr e@(HsApp {})                 = dsApp e
 dsExpr e@(HsAppType {})             = dsApp e
 
-dsExpr (HsUnboundVar (HER ref _ _) _)  = dsEvTerm =<< readMutVar ref
-        -- See Note [Holes] in GHC.Tc.Types.Constraint
+dsExpr (HsVar (Unbound (HER ref _ _)) _) = dsEvTerm =<< readMutVar ref
+    -- TODO: check this note:
+      -- See Note [Holes in expressions] in GHC.Tc.Types.Constraint.
 
 dsExpr (HsPar _ e)            = dsLExpr e
 dsExpr (ExprWithTySig _ e _)  = dsLExpr e
@@ -695,7 +695,7 @@ ds_app (XExpr (ConLikeTc con tvs tys)) _hs_args core_args
 ds_app (XExpr (HsRecSelTc (FieldOcc { foLabel = L _ sel_id }))) _hs_args core_args
   = ds_app_rec_sel sel_id sel_id core_args
 
-ds_app (HsVar _ lfun) hs_args core_args
+ds_app (HsVar Bound lfun) hs_args core_args
   = do { tracePm "ds_app" (ppr lfun <+> ppr core_args)
        ; ds_app_var lfun hs_args core_args }
 

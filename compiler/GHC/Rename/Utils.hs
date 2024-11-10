@@ -718,7 +718,7 @@ mkRnSyntaxExpr :: Name -> SyntaxExprRn
 mkRnSyntaxExpr = SyntaxExprRn . genHsVar
 
 genHsVar :: Name -> HsExpr GhcRn
-genHsVar n = HsVar noExtField (wrapGenSpan n)
+genHsVar n = HsVar Bound (wrapGenSpan n)
 
 genHsApps :: Name -> [LHsExpr GhcRn] -> HsExpr GhcRn
 genHsApps fun args = foldl genHsApp (genHsVar fun) args

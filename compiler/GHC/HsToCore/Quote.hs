@@ -98,7 +98,7 @@ import Data.List.NonEmpty ( NonEmpty(..), toList )
 import Data.Function
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Class
-import GHC.Types.Name.Reader (RdrName(..))
+import GHC.Types.Name.Reader (RdrName(..), getUnboundRdrName)
 
 data MetaWrappers = MetaWrappers {
       -- Applies its argument to a type argument `m` and dictionary `Quote m`
@@ -1533,7 +1533,7 @@ repLE :: LHsExpr GhcRn -> MetaM (Core (M TH.Exp))
 repLE (L loc e) = mapReaderT (putSrcSpanDs (locA loc)) (repE e)
 
 repE :: HsExpr GhcRn -> MetaM (Core (M TH.Exp))
-repE (HsVar _ (L _ x)) =
+repE (HsVar Bound (L _ x)) =
   do { mb_val <- lift $ dsLookupMetaEnv x
      ; case mb_val of
         Nothing            -> do { str <- lift $ globalVar x
@@ -1679,9 +1679,9 @@ repE (HsTypedSplice n _) = rep_splice n
 repE (HsUntypedSplice (HsUntypedSpliceNested n) _)  = rep_splice n
 repE e@(HsUntypedSplice (HsUntypedSpliceTop _ _) _) = pprPanic "repE: top level splice" (ppr e)
 repE (HsStatic _ e)        = repLE e >>= rep2 staticEName . (:[]) . unC
-repE (HsUnboundVar _ uv)   = do
-                               name <- repRdrName uv
-                               repUnboundVar name
+repE (HsVar (Unbound ()) (L _ uv)) = do
+  name <- repRdrName (getUnboundRdrName uv)
+  repUnboundVar name
 repE (HsGetField _ e (L _ (DotFieldOcc _ (L _ (FieldLabelString f))))) = do
   e1 <- repLE e
   repGetField e1 f
@@ -1718,7 +1718,7 @@ repE e@(XExpr (ExpandedThingRn o x))
   = notHandled (ThExpressionForm e)
 
 repE (XExpr (PopErrCtxt (L _ e))) = repE e
-repE (XExpr (HsRecSelRn (FieldOcc _ (L _ x)))) = repE (HsVar noExtField (noLocA x))
+repE (XExpr (HsRecSelRn (FieldOcc _ (L _ x)))) = repE (HsVar Bound (noLocA x))
 
 repE e@(HsPragE _ (HsPragSCC {}) _) = notHandled (ThCostCentres e)
 repE e@(HsTypedBracket{})   = notHandled (ThExpressionForm e)

@@ -220,7 +220,7 @@ A "head" has three special cases (for which we can infer a polytype
 using tcInferAppHead_maybe); otherwise is just any old expression (for
 which we can infer a rho-type (via tcInfer).
 
-There is no special treatment for HsUnboundVar, HsOverLit etc, because
+There is no special treatment for HsUnboundVarTc, HsOverLit etc, because
 we can't get a polytype from them.
 
 Left and right sections (e.g. (x +) and (+ x)) are not yet supported.
@@ -609,7 +609,7 @@ tcValArg _ (EValArgQL { eaql_wanted  = wanted
 
 --------------------
 wantQuickLook :: HsExpr GhcRn -> TcM QLFlag
-wantQuickLook (HsVar _ (L _ f))
+wantQuickLook (HsVar Bound (L _ f))
   | getUnique f `elem` quickLookKeys = return DoQL
 wantQuickLook _                      = do { impred <- xoptM LangExt.ImpredicativeTypes
                                           ; if impred then return DoQL else return NoQL }
@@ -658,7 +658,7 @@ tcInstFun do_ql inst_final (tc_fun, fun_ctxt) fun_sigma rn_args
     -- types. See Note [Representation-polymorphic Ids with no binding]
     -- in GHC.Tc.Utils.Concrete
     fun_conc_tvs
-      | HsVar _ (L _ fun_id) <- tc_fun
+      | HsVar Bound (L _ fun_id) <- tc_fun
       = idConcreteTvs fun_id
       -- Recall that DataCons are represented using ConLikeTc at GhcTc stage,
       -- see Note [Typechecking data constructors] in GHC.Tc.Gen.Head.
@@ -672,10 +672,10 @@ tcInstFun do_ql inst_final (tc_fun, fun_ctxt) fun_sigma rn_args
     -- See Note [Herald for matchExpectedFunTys] in GHC.Tc.Utils.Unify.
     n_val_args = count isHsValArg rn_args
 
-    fun_is_out_of_scope  -- See Note [VTA for out-of-scope functions]
+    fun_is_out_of_scope_or_hole  -- See Note [VTA for out-of-scope functions]
       = case tc_fun of
-          HsUnboundVar {} -> True
-          _               -> False
+          HsVar (Unbound _) _ -> True
+          _                   -> False
 
     inst_fun :: [HsExprArg 'TcpRn] -> ForAllTyFlag -> Bool
     -- True <=> instantiate a tyvar with this ForAllTyFlag
@@ -710,7 +710,7 @@ tcInstFun do_ql inst_final (tc_fun, fun_ctxt) fun_sigma rn_args
 
     -- Handle out-of-scope functions gracefully
     go1 pos acc fun_ty (arg : rest_args)
-      | fun_is_out_of_scope, looks_like_type_arg arg   -- See Note [VTA for out-of-scope functions]
+      | fun_is_out_of_scope_or_hole, looks_like_type_arg arg   -- See Note [VTA for out-of-scope functions]
       = go pos acc fun_ty rest_args
 
     -- Rule IALL from Fig 4 of the QL paper; applies even if args = []
@@ -995,7 +995,7 @@ expr_to_type earg =
       do { ctxt' <- mapM go ctxt
          ; ty <- go expr
          ; return (L l (HsQualTy noExtField (L ann ctxt') ty)) }
-    go (L l (HsVar _ lname)) =
+    go (L l (HsVar Bound lname)) =
       -- as per #281: variables and constructors (regardless of their namespace)
       -- are mapped directly, without modification.
       return (L l (HsTyVar noAnn NotPromoted lname))
@@ -1050,17 +1050,24 @@ expr_to_type earg =
       = do { t <- go (L l e)
            ; let splice_result' = HsUntypedSpliceTop finalizers t
            ; return (L l (HsSpliceTy splice_result' splice)) }
-    go (L l (HsUnboundVar _ rdr))
+    go (L l (HsVar (Unbound ()) (L _ nm)))
+      -- TODO: It would be nice to push underscore prefix checking to the
+      -- parser/renamer and transform these to HsHole at that point?  The thing
+      -- I don't know is, can we turn any an unbound HsVar with underscore
+      -- prefix into HsHole if NamedWildCards is enabled, or does the renamer
+      -- need to know if they are in a type context?
       | isUnderscore occ = return (L l (HsWildCardTy noExtField))
       | startsWithUnderscore occ =
           -- See Note [Wildcards in the T2T translation]
           do { wildcards_enabled <- xoptM LangExt.NamedWildCards
              ; if wildcards_enabled
+               -- TODO: I'm confused about this bit in general, read the note. Why is this an illegal wildcard?
                then illegal_wc rdr
                else not_in_scope }
       | otherwise = not_in_scope
       where occ = occName rdr
             not_in_scope = failWith $ mkTcRnNotInScope rdr NotInScope
+            rdr = getUnboundRdrName nm
     go (L l (XExpr (ExpandedThingRn (OrigExpr orig) _))) =
       -- Use the original, user-written expression (before expansion).
       -- Example. Say we have   vfun :: forall a -> blah
@@ -1122,7 +1129,7 @@ This conversion is in the TcM monad because
       vfun [x | x <- xs]     Can't convert list comprehension to a type
       vfun (\x -> x)         Can't convert a lambda to a type
 * It needs to check for LangExt.NamedWildCards to generate an appropriate
-  error message for HsUnboundVar.
+  error message for HsUnboundVarRn.
      vfun _a    Not in scope: ‘_a’
                    (NamedWildCards disabled)
      vfun _a    Illegal named wildcard in a required type argument: ‘_a’
@@ -1473,7 +1480,7 @@ Note [VTA for out-of-scope functions]
 Suppose 'wurble' is not in scope, and we have
    (wurble @Int @Bool True 'x')
 
-Then the renamer will make (HsUnboundVar "wurble") for 'wurble',
+Then the renamer will make (HsUnboundVarRn "wurble") for 'wurble',
 and the typechecker will typecheck it with tcUnboundId, giving it
 a type 'alpha', and emitting a deferred Hole constraint, to
 be reported later.
@@ -1488,7 +1495,7 @@ tcUnboundId.  It later reports 'wurble' as out of scope, and tries to
 give its type.
 
 Fortunately in tcInstFun we still have access to the function, so we
-can check if it is a HsUnboundVar.  We use this info to simply skip
+can check if it is a HsUnboundVarTc.  We use this info to simply skip
 over any visible type arguments.  We'll /already/ have emitted a
 Hole constraint; failing preserves that constraint.
 
@@ -2113,7 +2120,7 @@ It's all grotesquely complicated.
 -}
 
 isTagToEnum :: HsExpr GhcTc -> Bool
-isTagToEnum (HsVar _ (L _ fun_id)) = fun_id `hasKey` tagToEnumKey
+isTagToEnum (HsVar Bound (L _ fun_id)) = fun_id `hasKey` tagToEnumKey
 isTagToEnum _ = False
 
 tcTagToEnum :: (HsExpr GhcTc, AppCtxt) -> [HsExprArg 'TcpTc]

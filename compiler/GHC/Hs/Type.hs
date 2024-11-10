@@ -1162,7 +1162,6 @@ fieldOccLRdrName fo = case ghcPass @p of
 *                                                                      *
 ************************************************************************
 -}
-
 -- | Name of an operator in an operator application or section
 data OpName = NormalOp Name             -- ^ A normal identifier
             | NegateOp                  -- ^ Prefix negation

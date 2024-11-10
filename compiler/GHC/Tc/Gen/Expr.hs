@@ -288,7 +288,7 @@ tcExpr :: HsExpr GhcRn
 --   - ones taken apart by GHC.Tc.Gen.Head.splitHsApps
 --   - ones understood by GHC.Tc.Gen.Head.tcInferAppHead_maybe
 -- See Note [Application chains and heads] in GHC.Tc.Gen.App
-tcExpr e@(HsVar {})              res_ty = tcApp e res_ty
+tcExpr e@(HsVar Bound _)         res_ty = tcApp e res_ty
 tcExpr e@(HsApp {})              res_ty = tcApp e res_ty
 tcExpr e@(OpApp {})              res_ty = tcApp e res_ty
 tcExpr e@(HsAppType {})          res_ty = tcApp e res_ty
@@ -303,16 +303,14 @@ tcExpr e@(HsOverLit _ lit) res_ty
            Just lit' -> return (HsOverLit noExtField lit')
            Nothing   -> tcApp e res_ty }
 
--- Typecheck an occurrence of an unbound Id
---
--- Some of these started life as a true expression hole "_".
--- Others might simply be variables that accidentally have no binding site
-tcExpr (HsUnboundVar _ occ) res_ty
+tcExpr (HsVar (Unbound ()) (L l name)) res_ty
   = do { ty <- expTypeToType res_ty    -- Allow Int# etc (#12531)
-       ; her <- emitNewExprHole occ ty
+       -- FIXME: both HER and the HsVar _ id now contain id, this is redundant
+       ; her <- emitNewExprHole (getUnboundRdrName name) ty
+       ; let id = mkLocalId name ManyTy ty -- FIXME: is assert (not (isCoVarType ty)) needed?
        ; tcEmitBindingUsage bottomUE   -- Holes fit any usage environment
                                        -- (#18491)
-       ; return (HsUnboundVar her occ) }
+       ; return (HsVar (Unbound her) (L l id)) }
 
 tcExpr e@(HsLit x lit) res_ty
   = do { let lit_ty = hsLitType lit
@@ -341,7 +339,7 @@ tcExpr e@(HsIPVar _ x) res_ty
        ; ipClass <- tcLookupClass ipClassName
        ; ip_var <- emitWantedEvVar origin (mkClassPred ipClass [ip_name, ip_ty])
        ; tcWrapResult e
-                   (fromDict ipClass ip_name ip_ty (HsVar noExtField (noLocA ip_var)))
+                   (fromDict ipClass ip_name ip_ty (HsVar Bound (noLocA ip_var)))
                    ip_ty res_ty }
   where
   -- Coerces a dictionary for `IP "x" t` into `t`.

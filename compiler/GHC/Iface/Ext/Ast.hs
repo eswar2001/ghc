@@ -174,7 +174,7 @@ straightforward.  If you are extending the GHC AST, you will need to provide a
 Here is an extract from the `ToHie` instance for (LHsExpr (GhcPass p)):
 
   toHie e@(L mspan oexpr) = concatM $ getTypeNode e : case oexpr of
-      HsVar _ (L _ var) ->
+      HsVar _ (L _ var) -> FIXME
         [ toHie $ C Use (L mspan var)
              -- Patch up var location since typechecker removes it
         ]
@@ -1199,11 +1199,13 @@ instance HiePass p => ToHie (LocatedA (HsOverLit (GhcPass p))) where
 
 instance HiePass p => ToHie (LocatedA (HsExpr (GhcPass p))) where
   toHie e@(L mspan oexpr) = concatM $ getTypeNode e : case oexpr of
+      -- FIXME: take care of (XVar p)? Which passes can this handle really?
+      -- This case used to contain:
+      --   HsUnboundVar: HsVar _ _ -> []  -- there is an unbound name here, but that causes trouble
       HsVar _ (L _ var) ->
         [ toHie $ C Use (L mspan var)
              -- Patch up var location since typechecker removes it
         ]
-      HsUnboundVar _ _ -> []  -- there is an unbound name here, but that causes trouble
       HsOverLabel {} -> []
       HsIPVar _ _ -> []
       HsOverLit _ o ->

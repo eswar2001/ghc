@@ -104,7 +104,11 @@ module GHC.Types.Name.Reader (
         importSpecLoc, importSpecModule, isExplicitItem, bestImport,
 
         -- * Utils
-        opIsAt
+        opIsAt,
+
+        getUnboundRdrName,
+
+        mkUnboundNameRdr_
   ) where
 
 import GHC.Prelude
@@ -202,6 +206,15 @@ data RdrName
         -- Such a 'RdrName' can be created by using 'getRdrName' on a 'Name'
   deriving Data
 
+mkUnboundNameRdr_ :: Unique -> RdrName -> SrcSpan -> Name
+mkUnboundNameRdr_ uniq rdrName loc =
+  let mk_ mmoduleName occName = mkUnboundName_ uniq mmoduleName occName loc
+  in case rdrName of
+    Unqual occName -> mk_ Nothing occName
+    Qual moduleName occName -> mk_ (Just moduleName) occName
+    Orig _ _ -> error "Internal compiler error, tried to turn Orig RdrName into Unbound Name"
+    Exact _ -> error "Internal compiler error, tried to turn Exact Name into Unbound Name"
+
 {-
 ************************************************************************
 *                                                                      *
@@ -276,6 +289,15 @@ nameRdrName name = Exact name
 -- Keep the Name even for Internal names, so that the
 -- unique is still there for debug printing, particularly
 -- of Types (which are converted to IfaceTypes before printing)
+
+-- FIXME: Why don't functions that need this just work with Name?
+-- (Name currently has no way of saying "unbound and unqualified", and I'm not
+-- sure what exactly HoleUnit for qualified names means.)
+getUnboundRdrName :: Name -> RdrName
+getUnboundRdrName n =
+  case getUnboundName_ n of
+    (Just moduleName, occName) -> Qual moduleName occName
+    (Nothing, occName) -> Unqual occName
 
 nukeExact :: Name -> RdrName
 nukeExact n

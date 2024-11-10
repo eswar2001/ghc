@@ -130,7 +130,6 @@ import GHC.Core.Class
 import GHC.Core.Predicate
 import GHC.Core.UsageEnv
 
-import GHC.Types.Var
 import GHC.Types.Id as Id
 import GHC.Types.Name
 import GHC.Types.SourceText
@@ -156,7 +155,7 @@ import Data.IORef
 import GHC.Data.Maybe
 import qualified Data.Semigroup as Semi
 import GHC.Types.Name.Reader
-
+import GHC.Types.Var
 {-
 ************************************************************************
 *                                                                      *

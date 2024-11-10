@@ -132,7 +132,7 @@ newMethodFromName origin name ty_args
        ; wrap <- assert (not (isForAllTy ty) && isSingleton theta) $
                  instCall origin ty_args theta
 
-       ; return (mkHsWrap wrap (HsVar noExtField (noLocA id))) }
+       ; return (mkHsWrap wrap (HsVar Bound (noLocA id))) }
 
 {-
 ************************************************************************
@@ -864,7 +864,7 @@ tcSyntaxName :: CtOrigin
 -- USED ONLY FOR CmdTop (sigh) ***
 -- See Note [CmdSyntaxTable] in "GHC.Hs.Expr"
 
-tcSyntaxName orig ty (std_nm, HsVar _ (L _ user_nm))
+tcSyntaxName orig ty (std_nm, HsVar Bound (L _ user_nm))
   | std_nm == user_nm
   = do rhs <- newMethodFromName orig std_nm [ty]
        return (std_nm, rhs)

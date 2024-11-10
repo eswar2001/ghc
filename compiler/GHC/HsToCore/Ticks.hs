@@ -469,9 +469,8 @@ addBinTickLHsExpr boxLabel e@(L pos e0)
 -- in the addTickLHsExpr family of functions.)
 
 addTickHsExpr :: HsExpr GhcTc -> TM (HsExpr GhcTc)
-addTickHsExpr e@(HsVar _ (L _ id))  = do freeVar id; return e
-addTickHsExpr e@(HsUnboundVar {})   = return e
-
+addTickHsExpr e@(HsVar Bound (L _ id))  = do freeVar id; return e
+addTickHsExpr e@(HsVar (Unbound _) _)   = return e -- TODO: can we also do freeVar id here?
 addTickHsExpr e@(HsIPVar {})            = return e
 addTickHsExpr e@(HsOverLit {})          = return e
 addTickHsExpr e@(HsOverLabel{})         = return e

@@ -311,20 +311,28 @@ finishHsVar (L l name)
  = do { this_mod <- getModule
       ; when (nameIsLocalOrFrom this_mod name) $
         checkThLocalName name
-      ; return (HsVar noExtField (L (l2l l) name), unitFV name) }
+      ; return (HsVar Bound (L (l2l l) name), unitFV name) }
 
-rnUnboundVar :: RdrName -> RnM (HsExpr GhcRn, FreeVars)
-rnUnboundVar v = do
+rnUnboundVar :: LocatedN RdrName -> RnM (HsExpr GhcRn, FreeVars)
+rnUnboundVar (L l v) = do
   deferOutofScopeVariables <- goptM Opt_DeferOutOfScopeVariables
   -- See Note [Reporting unbound names] for difference between qualified and unqualified names.
   unless (isUnqual v || deferOutofScopeVariables) (reportUnboundName v >> return ())
-  return (HsUnboundVar noExtField v, emptyFVs)
+  uniq <- newUnique
+  return (HsVar (Unbound ()) (L l (mkUnboundNameRdr_ uniq v noSrcSpan)), emptyFVs)
 
-rnExpr (HsVar _ (L l v))
+rnExpr (HsVar NoExtField (L l v))
+  | isUnderscore (rdrNameOcc v)
+  = do
+      -- TODO: use rnUnboundVar/deduplicate?
+      uniq <- newUnique
+      return (HsVar (Unbound ()) (L l (mkUnboundNameRdr_ uniq v noSrcSpan)), emptyFVs)
+rnExpr (HsVar NoExtField locatedRdrName@(L l v))
+  | otherwise
   = do { dflags <- getDynFlags
        ; mb_gre <- lookupExprOccRn v
        ; case mb_gre of {
-           Nothing -> rnUnboundVar v ;
+           Nothing -> rnUnboundVar locatedRdrName ;
            Just gre ->
     do { let nm   = greName gre
              info = greInfo gre
@@ -352,9 +360,6 @@ rnExpr (HsVar _ (L l v))
 
 rnExpr (HsIPVar x v)
   = return (HsIPVar x v, emptyFVs)
-
-rnExpr (HsUnboundVar _ v)
-  = return (HsUnboundVar noExtField v, emptyFVs)
 
 -- HsOverLabel: see Note [Handling overloaded and rebindable constructs]
 rnExpr (HsOverLabel src v)
@@ -414,7 +419,7 @@ rnExpr (OpApp _ e1 op e2)
         -- more, so I've removed the test.  Adding HsPars in GHC.Tc.Deriv.Generate
         -- should prevent bad things happening.
         ; fixity <- case op' of
-              L _ (HsVar _ (L _ n))      -> lookupFixityRn n
+              L _ (HsVar Bound (L _ n))      -> lookupFixityRn n
               L _ (XExpr (HsRecSelRn f)) -> lookupFieldFixityRn f
               _ -> return (Fixity minPrecedence InfixL)
                    -- c.f. lookupFixity for unbound
@@ -859,8 +864,8 @@ See #18151.
 Note [Reporting unbound names]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 Faced with an out-of-scope `RdrName` there are two courses of action
-A. Report an error immediately (and return a HsUnboundVar). This will halt GHC after the renamer is complete
-B. Return a HsUnboundVar without reporting an error.  That will allow the typechecker to run, which in turn
+A. Report an error immediately (and return a HsUnboundVarRn). This will halt GHC after the renamer is complete
+B. Return a HsUnboundVarRn without reporting an error.  That will allow the typechecker to run, which in turn
    can give a better error message, notably giving the type of the variable via the "typed holes" mechanism.
 
 When `-fdefer-out-of-scope-variables` is on we follow plan B.
@@ -1428,12 +1433,12 @@ lookupStmtNamePoly ctxt name
   = do { rebindable_on <- xoptM LangExt.RebindableSyntax
        ; if rebindable_on
          then do { fm <- lookupOccRn (nameRdrName name)
-                 ; return (HsVar noExtField (noLocA fm), unitFV fm) }
+                 ; return (HsVar Bound (noLocA fm), unitFV fm) }
          else not_rebindable }
   | otherwise
   = not_rebindable
   where
-    not_rebindable = return (HsVar noExtField (noLocA name), emptyFVs)
+    not_rebindable = return (HsVar Bound (noLocA name), emptyFVs)
 
 -- | Is this a context where we respect RebindableSyntax?
 -- but ListComp are never rebindable
@@ -2557,7 +2562,7 @@ isReturnApp monad_names (L loc e) mb_pure = case e of
  where
   is_var f (L _ (HsPar _ e)) = is_var f e
   is_var f (L _ (HsAppType _ e _)) = is_var f e
-  is_var f (L _ (HsVar _ (L _ r))) = f r
+  is_var f (L _ (HsVar Bound (L _ r))) = f r
        -- TODO: I don't know how to get this right for rebindable syntax
   is_var _ _ = False
 

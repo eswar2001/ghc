@@ -31,7 +31,7 @@ traverse a =
       gmapM traverse a
   where
     showVar :: Maybe (HsExpr GhcTc) -> Traverse ()
-    showVar (Just (HsVar _ (L _ v))) =
+    showVar (Just (HsVar Bound (L _ v))) =
       modify $ \(loc, ids) -> (loc, (varName v, loc) : ids)
     showVar _ =
       return ()
