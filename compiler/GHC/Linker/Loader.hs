@@ -67,8 +67,10 @@ import GHC.Types.Basic
 import GHC.Types.Name
 import GHC.Types.Name.Env
 import GHC.Types.SrcLoc
+import GHC.Types.Unique
 import GHC.Types.Unique.DSet
 import GHC.Types.Unique.DFM
+import GHC.Types.Unique.FM
 
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
@@ -83,6 +85,7 @@ import GHC.Unit.State as Packages
 
 import qualified GHC.Data.ShortText as ST
 import GHC.Data.FastString
+import qualified GHC.Data.Word64Set as S
 
 import GHC.Linker.Deps
 import GHC.Linker.MacOS
@@ -1092,29 +1095,42 @@ loadPackages interp hsc_env new_pkgs = do
 
 loadPackages' :: Interp -> HscEnv -> [UnitId] -> LoaderState -> IO LoaderState
 loadPackages' interp hsc_env new_pks pls = do
-    pkgs' <- link (pkgs_loaded pls) new_pks
+    pkgs' <- link (pkgs_loaded pls) sorted_deps
     return $! pls { pkgs_loaded = pkgs'
                   }
   where
+     do_pkgs :: (S.Word64Set, [UnitId]) -> [UnitId] -> (S.Word64Set, [UnitId])
+     do_pkgs = foldl' do_pkg
+
+     do_pkg :: (S.Word64Set, [UnitId]) -> UnitId -> (S.Word64Set, [UnitId])
+     do_pkg (!pkgs, !acc) new_pkg
+       | k `S.member` pkgs = (pkgs, acc)
+       | Just pkg_cfg <- lookupUnitId (hsc_units hsc_env) new_pkg =
+           let deps = unitDepends pkg_cfg
+               (pkgs', acc') = do_pkgs (pkgs, acc) deps
+             in (k `S.insert` pkgs', new_pkg:acc')
+       | otherwise = cmdLineError $ "unknown package: " ++ unpackFS (unitIdFS new_pkg)
+       where
+         k = getKey (getUnique new_pkg)
+
+     (_, rev_sorted_deps) = do_pkgs (ufmToSet_Directly $ udfmToUfm $ pkgs_loaded pls, []) new_pks
+
+     sorted_deps = reverse rev_sorted_deps
+
      link :: PkgsLoaded -> [UnitId] -> IO PkgsLoaded
      link pkgs new_pkgs =
          foldM link_one pkgs new_pkgs
 
      link_one pkgs new_pkg
-        | new_pkg `elemUDFM` pkgs   -- Already linked
-        = return pkgs
-
         | Just pkg_cfg <- lookupUnitId (hsc_units hsc_env) new_pkg
         = do { let deps = unitDepends pkg_cfg
-               -- Link dependents first
-             ; pkgs' <- link pkgs deps
                 -- Now link the package itself
              ; (hs_cls, extra_cls, loaded_dlls) <- loadPackage interp hsc_env pkg_cfg
              ; let trans_deps = unionManyUniqDSets [ addOneToUniqDSet (loaded_pkg_trans_deps loaded_pkg_info) dep_pkg
                                                    | dep_pkg <- deps
-                                                   , Just loaded_pkg_info <- pure (lookupUDFM pkgs' dep_pkg)
+                                                   , Just loaded_pkg_info <- pure (lookupUDFM pkgs dep_pkg)
                                                    ]
-             ; return (addToUDFM pkgs' new_pkg (LoadedPkgInfo new_pkg hs_cls extra_cls loaded_dlls trans_deps)) }
+             ; return (addToUDFM pkgs new_pkg (LoadedPkgInfo new_pkg hs_cls extra_cls loaded_dlls trans_deps)) }
 
         | otherwise
         = throwGhcExceptionIO (CmdLineError ("unknown package: " ++ unpackFS (unitIdFS new_pkg)))
