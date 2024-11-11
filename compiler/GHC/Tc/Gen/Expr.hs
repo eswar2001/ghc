@@ -303,11 +303,11 @@ tcExpr e@(HsOverLit _ lit) res_ty
            Just lit' -> return (HsOverLit noExtField lit')
            Nothing   -> tcApp e res_ty }
 
-tcExpr (HsVar (Unbound ()) (L l name)) res_ty
+tcExpr (HsVar (Unbound ()) (L l occ)) res_ty
   = do { ty <- expTypeToType res_ty    -- Allow Int# etc (#12531)
        -- FIXME: both HER and the HsVar _ id now contain id, this is redundant
-       ; her <- emitNewExprHole (getUnboundRdrName name) ty
-       ; let id = mkLocalId name ManyTy ty -- FIXME: is assert (not (isCoVarType ty)) needed?
+       ; let id = mkLocalId occ ManyTy ty -- FIXME: is assert (not (isCoVarType ty)) needed?
+       ; her <- emitNewExprHole id
        ; tcEmitBindingUsage bottomUE   -- Holes fit any usage environment
                                        -- (#18491)
        ; return (HsVar (Unbound her) (L l id)) }

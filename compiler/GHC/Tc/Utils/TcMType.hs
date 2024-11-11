@@ -302,18 +302,15 @@ emitWantedEvVars :: CtOrigin -> [TcPredType] -> TcM [EvVar]
 emitWantedEvVars orig = mapM (emitWantedEvVar orig)
 
 -- | Emit a new wanted expression hole
-emitNewExprHole :: RdrName         -- of the hole
-                -> Type -> TcM HoleExprRef
-emitNewExprHole occ ty
-  = do { u <- newUnique
-       ; ref <- newTcRef (pprPanic "unfilled unbound-variable evidence" (ppr u))
-       ; let her = HER ref ty u
-
-       ; loc <- getCtLocM (ExprHoleOrigin (Just occ)) (Just TypeLevel)
-
+emitNewExprHole :: Id -> TcM HoleExprRef
+emitNewExprHole id
+  = do { ref <- newTcRef (pprPanic "unfilled unbound-variable evidence" (ppr (idUnique id)))
+       ; let her = HER ref id
+       ; let rdrName = getUnboundRdrName (getName id)
+       ; loc <- getCtLocM (ExprHoleOrigin (Just rdrName)) (Just TypeLevel)
        ; let hole = Hole { hole_sort = ExprHole her
-                         , hole_occ  = occ
-                         , hole_ty   = ty
+                         , hole_occ  = rdrName
+                         , hole_ty   = idType id
                          , hole_loc  = loc }
        ; emitHole hole
        ; return her }

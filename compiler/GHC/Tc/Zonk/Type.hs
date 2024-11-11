@@ -930,10 +930,10 @@ zonkExpr (HsVar (Unbound her) occ)
        return (HsVar (Unbound her') occ)
   where
     zonk_her :: HoleExprRef -> ZonkTcM HoleExprRef
-    zonk_her (HER ref ty u)
+    zonk_her (HER ref id)
       = do updTcRefM ref zonkEvTerm
-           ty'  <- zonkTcTypeToTypeX ty
-           return (HER ref ty' u)
+           id'  <- zonkIdOcc id
+           return (HER ref id')
 
 
 zonkExpr (HsIPVar x _) = dataConCantHappen x
