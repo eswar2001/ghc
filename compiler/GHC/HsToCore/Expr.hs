@@ -272,7 +272,7 @@ dsExpr e@(HsVar Bound _)               = dsApp e
 dsExpr e@(HsApp {})                 = dsApp e
 dsExpr e@(HsAppType {})             = dsApp e
 
-dsExpr (HsVar (Unbound (HER ref _)) _) = dsEvTerm =<< readMutVar ref
+dsExpr (HsVar (Unbound (HER ref)) _) = dsEvTerm =<< readMutVar ref
     -- TODO: check this note:
       -- See Note [Holes in expressions] in GHC.Tc.Types.Constraint.
 

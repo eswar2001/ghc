@@ -377,6 +377,12 @@ instance Outputable DelayedError where
   ppr (DE_NotConcrete err) = ppr err
   ppr (DE_Multiplicity co _) = ppr co
 
+-- TODO: Because ExprHole is created from HsVar it seems tempting to replace
+-- hole_occ and hole_ty by a new "hole_id" field. I think this could also work
+-- for Types and Constraints. But ParseError holes wouldn't have an occ, so
+-- maybe the Hole data type would need to be changed altogether to cover that
+-- case.
+
 -- | A hole stores the information needed to report diagnostics
 -- about holes in terms (unbound identifiers or underscores) or
 -- in types (also called wildcards, as used in partial type
@@ -395,7 +401,8 @@ data Hole
            -- hole type loops.
 
 
--- TODO: We should have ParseFailure hole as well!
+-- TODO: Should we have ParseFailure hole as well?
+
 -- | Used to indicate which sort of hole we have.
 data HoleSort = ExprHole HoleExprRef
                  -- ^ Either an out-of-scope variable or a "true" hole in an
@@ -411,17 +418,15 @@ data HoleSort = ExprHole HoleExprRef
                  -- Note [Do not simplify ConstraintHoles] in GHC.Tc.Solver.
 
 instance Outputable Hole where
-  ppr (Hole { hole_sort = ExprHole ref
+  ppr (Hole { hole_sort = sort
             , hole_occ  = occ
             , hole_ty   = ty })
-    = parens $ (braces $ ppr occ <> colon <> ppr ref) <+> dcolon <+> ppr ty
-  ppr (Hole { hole_sort = _other
-            , hole_occ  = occ
-            , hole_ty   = ty })
-    = braces $ ppr occ <> colon <> ppr ty
+    = parens $ braces (ppr occ <> colon <> ppr sort) <+> dcolon <+> ppr ty
 
+-- TODO: Hole used to contain an Id in the HoleExprRef that was ppr'ed
+-- here. Okay to leave out? Give all holes Uniques/Vars?
 instance Outputable HoleSort where
-  ppr (ExprHole ref) = text "ExprHole:" <+> ppr ref
+  ppr (ExprHole _ref) = text "ExprHole"
   ppr TypeHole       = text "TypeHole"
   ppr ConstraintHole = text "ConstraintHole"
 

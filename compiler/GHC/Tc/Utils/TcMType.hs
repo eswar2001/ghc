@@ -305,7 +305,7 @@ emitWantedEvVars orig = mapM (emitWantedEvVar orig)
 emitNewExprHole :: Id -> TcM HoleExprRef
 emitNewExprHole id
   = do { ref <- newTcRef (pprPanic "unfilled unbound-variable evidence" (ppr (idUnique id)))
-       ; let her = HER ref id
+       ; let her = HER ref
        ; let rdrName = getUnboundRdrName (getName id)
        ; loc <- getCtLocM (ExprHoleOrigin (Just rdrName)) (Just TypeLevel)
        ; let hole = Hole { hole_sort = ExprHole her

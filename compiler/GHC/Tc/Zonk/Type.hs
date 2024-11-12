@@ -920,21 +920,13 @@ zonkExpr   :: HsExpr GhcTc    -> ZonkTcM (HsExpr GhcTc)
 zonkLExprs exprs = mapM zonkLExpr exprs
 zonkLExpr  expr  = wrapLocZonkMA zonkExpr expr
 
-zonkExpr (HsVar Bound (L l id))
+zonkExpr (HsVar inf (L l id))
   = assertPpr (isNothing (isDataConId_maybe id)) (ppr id) $
   do { id' <- zonkIdOcc id
-     ; return (HsVar Bound (L l id')) }
-
-zonkExpr (HsVar (Unbound her) occ)
-  = do her' <- zonk_her her
-       return (HsVar (Unbound her') occ)
-  where
-    zonk_her :: HoleExprRef -> ZonkTcM HoleExprRef
-    zonk_her (HER ref id)
-      = do updTcRefM ref zonkEvTerm
-           id'  <- zonkIdOcc id
-           return (HER ref id')
-
+     ; case inf of
+         Bound -> pure ()
+         Unbound (HER ref) -> updTcRefM ref zonkEvTerm
+     ; return (HsVar inf (L l id')) }
 
 zonkExpr (HsIPVar x _) = dataConCantHappen x
 

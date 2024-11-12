@@ -586,11 +586,7 @@ data EvCallStack
 
 -- | Where to store evidence for expression holes
 -- See Note [Holes in expressions] in GHC.Tc.Types.Constraint
-data HoleExprRef = HER (IORef EvTerm)   -- ^ where to write the erroring expression
-                       Id
-
-instance Outputable HoleExprRef where
-  ppr (HER _ i) = ppr i
+newtype HoleExprRef = HER (IORef EvTerm)   -- ^ where to write the erroring expression
 
 instance Data.Data HoleExprRef where
   -- Placeholder; we can't traverse into HoleExprRef
