@@ -217,8 +217,8 @@ import qualified Data.Set as Set
 import GHC.Unit.Module.Graph
 
 import Data.Bifunctor (bimap)
-import GHC.Data.Graph.Directed
 import GHC.Data.Maybe
+import qualified Data.Map as Map
 
 {- *********************************************************************
 *                                                                      *
@@ -1458,10 +1458,13 @@ checkWellStagedInstanceWhat what
     = do
         cur_mod <- extractModule <$> getGblEnv
         hsc_env <- getTopEnv
-        let (mg, lookup_node) = moduleGraphNodesZero (hsc_units hsc_env) (mgModSummaries' $ hsc_mod_graph hsc_env)
+        let mg = mgTransDepsZero (hsc_mod_graph hsc_env)
 
         let lkup :: ImportStage -> Set.Set (Either Module UnitId)
-            lkup s = Set.fromList $ map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id . node_payload) $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) [Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)])
+            lkup s =
+              let l1 = expectJust "checkWell" $ Map.lookup (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) mg
+              in Set.map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id) l1
+                --Set.fromList $ map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id . node_payload) $
 --        let lkup s = Set.map (bimap (\(ModNodeKeyWithUid mn _ u,_) -> mkModule (RealUnit (Definite u)) (gwib_mod mn)) id) $ flip (Map.!) (Left (ModNodeKeyWithUid (GWIB (moduleName cur_mod) NotBoot) zeroStage (moduleUnitId cur_mod), s)) tg
         let splice_lvl = lkup SpliceStage
             normal_lvl = lkup NormalStage

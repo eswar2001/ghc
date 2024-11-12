@@ -60,7 +60,7 @@ module GHC.Tc.Utils.Env(
 
         -- Template Haskell stuff
         StageCheckReason(..),
-        checkWellStaged, tcMetaTy, thLevel,
+        tcMetaTy, thLevel,
         topIdLvl, isBrackStage,
 
         -- New Ids
@@ -139,7 +139,6 @@ import Control.Monad
 import GHC.Iface.Errors.Types
 import GHC.Types.Error
 import GHC.Rename.Unbound ( unknownNameSuggestions, WhatLooking(..) )
-import qualified Data.Set as Set
 
 {- *********************************************************************
 *                                                                      *
@@ -849,22 +848,6 @@ tcExtendRules lcl_rules thing_inside
 *                                                                      *
 ************************************************************************
 -}
-
--- MP: This whole function needs rewriting
-checkWellStaged :: StageCheckReason -- What the stage check is for
-                -> Set.Set ThLevel      -- Binding level (increases inside brackets)
-                -> ThLevel      -- Use stage
-                -> TcM ()       -- Fail if badly staged, adding an error
-checkWellStaged pp_thing bind_lvl use_lvl
-  | any (use_lvl >=) (Set.toList bind_lvl)         -- OK! Used later than bound
-  = return ()                   -- E.g.  \x -> [| $(f x) |]
-
- -- | bind_lvl == outerLevel      -- GHC restriction on top level splices
- -- = failWithTc (TcRnStageRestriction pp_thing)
-
-  | otherwise                   -- Badly staged
-  = failWithTc $                -- E.g.  \x -> $(f x)
-    TcRnBadlyStaged pp_thing bind_lvl use_lvl
 
 topIdLvl :: Id -> ThLevel
 -- Globals may either be imported, or may be from an earlier "chunk"

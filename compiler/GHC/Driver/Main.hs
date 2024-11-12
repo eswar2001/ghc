@@ -831,7 +831,7 @@ hscRecompStatus
   = do
     let
         msg what = case mHscMessage of
-          Just hscMessage -> hscMessage hsc_env mod_index what (ModuleNode [] [] lvl mod_summary)
+          Just hscMessage -> hscMessage hsc_env mod_index what (ModuleNode [] lvl mod_summary)
           Nothing -> return ()
 
     -- First check to see if the interface file agrees with the
@@ -1469,6 +1469,7 @@ batchMsgWith extra hsc_env_start mod_index recomp node =
                     LinkNode {} -> "Linking"
                     InstantiationNode {} -> "Instantiating"
                     ModuleNode {} -> "Compiling"
+                    UnitNode {} -> "Using"
         hsc_env = hscSetActiveUnitId (moduleGraphNodeUnitId node) hsc_env_start
         dflags = hsc_dflags hsc_env
         logger = hsc_logger hsc_env

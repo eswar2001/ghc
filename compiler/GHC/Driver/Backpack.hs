@@ -589,6 +589,7 @@ mkBackpackMsg = do
               MustCompile -> empty
               RecompBecause reason -> text " [" <> pprWithUnitState state (ppr reason) <> text "]"
         LinkNode _ _ -> showMsg (text "Linking ")  empty
+        UnitNode _ _ uid -> showMsg (text "Existing dependency" <+> ppr uid) empty
 
 -- | 'PprStyle' for Backpack messages; here we usually want the module to
 -- be qualified (so we can tell how it was instantiated.) But we try not
@@ -742,7 +743,7 @@ hsunitModuleGraph do_link unit = do
     --  requirement.
     let hsig_set = Set.fromList
           [ ms_mod_name ms
-          | ModuleNode _ _ _ ms <- nodes
+          | ModuleNode _ _ ms <- nodes
           , ms_hsc_src ms == HsigFile
           ]
     req_nodes <- fmap catMaybes . forM (homeUnitInstantiations home_unit) $ \(mod_name, _) ->
@@ -817,7 +818,7 @@ summariseRequirement pn mod_name = do
         ms_hspp_buf = Nothing
         }
     let nodes = [NodeKey_Module (ModNodeKeyWithUid (GWIB mn NotBoot) todoStage (homeUnitId home_unit)) | mn <- extra_sig_imports ]
-    return (ModuleNode nodes [] todoStage ms)
+    return (ModuleNode nodes todoStage ms)
 
 summariseDecl :: PackageName
               -> HscSource
@@ -935,7 +936,7 @@ hsModuleToModSummary home_keys pn hsc_src modname
           [k | (_, _,  mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) todoStage (moduleUnitId this_mod)), k `elem` home_keys]
 
 
-    return (ModuleNode (mod_nodes ++ inst_nodes) [] todoStage ms)
+    return (ModuleNode (mod_nodes ++ inst_nodes) todoStage ms)
 
 -- | Create a new, externally provided hashed unit id from
 -- a hash.

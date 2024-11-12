@@ -258,10 +258,11 @@ instance Diagnostic DriverMessage where
              go (m:ms) = (text "which imports" <+> ppr_node m) : go ms
 
         ppr_node :: ModuleGraphNode -> SDoc
-        ppr_node (ModuleNode _deps _uids lvl m)
+        ppr_node (ModuleNode _deps lvl m)
           = text "module" <+> ppr_ms m <+> if lvl == zeroStage then empty else (text "@"  <> ppr lvl)
         ppr_node (InstantiationNode _uid u) = text "instantiated unit" <+> ppr u
         ppr_node (LinkNode uid _) = pprPanic "LinkNode should not be in a cycle" (ppr uid)
+        ppr_node (UnitNode _ _ uid) = pprPanic "UnitNode not in cycle" (ppr uid)
 
         ppr_ms :: ModSummary -> SDoc
         ppr_ms ms = quotes (ppr (moduleName (ms_mod ms))) <+>

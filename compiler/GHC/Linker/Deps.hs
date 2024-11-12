@@ -165,7 +165,7 @@ get_link_deps opts pls maybe_normal_osuf span mods = do
     make_deps_loop found@(found_units, found_mods) (nk:nexts)
       | NodeKey_Module nk `Set.member` found_mods = make_deps_loop found nexts
       | otherwise =
-        case M.lookup (NodeKey_Module nk) (mgTransDeps mod_graph) of
+        case M.lookup (NodeKey_Module nk) (fst $ mgTransDeps mod_graph) of
             Just trans_deps ->
               let deps = Set.insert (NodeKey_Module nk) trans_deps
                   -- See #936 and the ghci.prog007 test for why we have to continue traversing through

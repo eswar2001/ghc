@@ -611,12 +611,11 @@ createBuildPlan mod_graph maybe_top_mod =
               mresolved_cycle = collapseSCC (topSortWithBoot nodes)
           in acyclic ++ [either UnresolvedCycle ResolvedCycle mresolved_cycle] ++ toBuildPlan sccs []
 
-        (mg, lookup_node) = moduleGraphNodes False (mgModSummaries' mod_graph)
-        trans_deps_map = allReachable mg (mkNodeKey . node_payload)
+        (trans_deps_map, lookup_node) = mgTransDeps mod_graph
         -- Compute the intermediate modules between a file and its hs-boot file.
         -- See Step 2a in Note [Upsweep]
         boot_path mn uid =
-          map (summaryNodeSummary . expectJust "toNode" . lookup_node) $ Set.toList $
+          map (expectJust "toNode" . lookup_node) $ Set.toList $
           -- Don't include the boot module itself
           Set.delete (NodeKey_Module (key IsBoot))  $
           -- Keep intermediate dependencies: as per Step 2a in Note [Upsweep], these are
@@ -631,13 +630,13 @@ createBuildPlan mod_graph maybe_top_mod =
 
         -- An environment mapping a module to its hs-boot file and all nodes on the path between the two, if one exists
         boot_modules = mkModuleEnv
-          [ (ms_mod ms, (m, boot_path (ms_mod_name ms) (ms_unitid ms))) | m@(ModuleNode _ _ _lvl ms) <- (mgModSummaries' mod_graph), isBootSummary ms == IsBoot]
+          [ (ms_mod ms, (m, boot_path (ms_mod_name ms) (ms_unitid ms))) | m@(ModuleNode _ _lvl ms) <- (mgModSummaries' mod_graph), isBootSummary ms == IsBoot]
 
         select_boot_modules :: [ModuleGraphNode] -> [ModuleGraphNode]
         select_boot_modules = mapMaybe (fmap fst . get_boot_module)
 
         get_boot_module :: ModuleGraphNode -> Maybe (ModuleGraphNode, [ModuleGraphNode])
-        get_boot_module m = case m of ModuleNode _ _ _lvl ms | HsSrcFile <- ms_hsc_src ms -> lookupModuleEnv boot_modules (ms_mod ms); _ -> Nothing
+        get_boot_module m = case m of ModuleNode _ _lvl ms | HsSrcFile <- ms_hsc_src ms -> lookupModuleEnv boot_modules (ms_mod ms); _ -> Nothing
 
         -- Any cycles should be resolved now
         collapseSCC :: [SCC ModuleGraphNode] -> Either [ModuleGraphNode] [(Either ModuleGraphNode ModuleGraphNodeWithBootFile)]
@@ -1153,7 +1152,7 @@ interpretBuildPlan hug mhmi_cache old_hpt plan = do
                   (hug, deps) <- wait_deps_hug hug_var build_deps
                   executeInstantiationNode mod_idx n_mods hug uid iu
                   return (Nothing, deps)
-              ModuleNode _build_deps _uids lvl ms ->
+              ModuleNode _build_deps lvl ms ->
                 let !old_hmi = M.lookup (msKey lvl ms) old_hpt
                     rehydrate_mods = mapMaybe nodeKeyModName <$> rehydrate_nodes
                 in withCurrentUnit (moduleGraphNodeUnitId mod) $ do
@@ -1171,6 +1170,9 @@ interpretBuildPlan hug mhmi_cache old_hpt plan = do
                     (hug, deps) <- wait_deps_hug hug_var build_deps
                     executeLinkNode hug (mod_idx, n_mods) uid direct_deps
                     return (Nothing, deps)
+              UnitNode {} ->
+                -- TODO: Perhaps can prelink in these units here
+                return (Nothing, M.empty)
 
 
       res_var <- liftIO newEmptyMVar
@@ -1478,14 +1480,14 @@ topSortModuleGraph
 topSortModuleGraph drop_hs_boot_nodes module_graph mb_root_mod =
     -- stronglyConnCompG flips the original order, so if we reverse
     -- the summaries we get a stable topological sort.
-  topSortModules drop_hs_boot_nodes (reverse $ collapseModuleGraphNodes $ mgModSummaries' module_graph) mb_root_mod
+  topSortModules drop_hs_boot_nodes (reverse $ mgModSummaries' module_graph) mb_root_mod
 
 topSortModules :: Bool -> [ModuleGraphNode] -> Maybe HomeUnitModule -> [SCC ModuleGraphNode]
 topSortModules drop_hs_boot_nodes summaries mb_root_mod
   = map (fmap summaryNodeSummary) $ stronglyConnCompG initial_graph
   where
     (graph, lookup_node) =
-      moduleGraphNodes drop_hs_boot_nodes summaries
+      moduleGraphNodes drop_hs_boot_nodes CollapseToZero summaries
 
     initial_graph = case mb_root_mod of
         Nothing -> graph
@@ -1617,7 +1619,7 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
        -- for dependencies of modules that have -XTemplateHaskell,
        -- otherwise those modules will fail to compile.
        -- See Note [-fno-code mode] #8025
-       th_enabled_nodes <- enableCodeGenForTH logger tmpfs unit_env (hsc_units hsc_env) all_nodes
+       th_enabled_nodes <- enableCodeGenForTH logger tmpfs unit_env all_nodes
        if null all_root_errs
          then return (all_errs, th_enabled_nodes)
          else pure $ (all_root_errs, [])
@@ -1637,7 +1639,6 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
           [(ms_unitid ms, offsetStage lvl st, b, c) | (st, b, c) <- msDeps ms ]
 
         -- Hacky..
-        offsetStage lvl _ | lvl >= ModuleStage 10 || lvl <= ModuleStage (-10) = lvl
         offsetStage lvl NormalStage = lvl
         offsetStage lvl QuoteStage  = incModuleStage lvl
         offsetStage lvl SpliceStage = decModuleStage lvl
@@ -1670,10 +1671,10 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
           = loopSummaries next (done, summarised)
           -- Didn't work out what the imports mean yet, now do that.
           | otherwise = do
-             (final_deps, uids, done', summarised') <- loopImports (calcDeps lvl ms) done summarised
+             (final_deps, done', summarised') <- loopImports (calcDeps lvl ms) done summarised
              -- This has the effect of finding a .hs file if we are looking at the .hs-boot file.
-             (_, _, done'', summarised'') <- loopImports (maybeToList hs_file_for_boot) done' summarised'
-             loopSummaries (maybeToList zero ++ next) (M.insert k (ModuleNode final_deps (ordNub uids) lvl ms) done'', summarised'')
+             (_, done'', summarised'') <- loopImports (maybeToList hs_file_for_boot) done' summarised'
+             loopSummaries (maybeToList zero ++ next) (M.insert k (ModuleNode final_deps lvl ms) done'', summarised'')
           where
             k = NodeKey_Module (msKey lvl ms)
 
@@ -1697,17 +1698,17 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
                         -- Visited set; the range is a list because
                         -- the roots can have the same module names
                         -- if allow_dup_roots is True
-             -> IO ([NodeKey], [(ModuleStage, UnitId)],
+             -> IO ([NodeKey],
                   M.Map NodeKey ModuleGraphNode, DownsweepCache)
                         -- The result is the completed NodeMap
-        loopImports [] done summarised = return ([], [], done, summarised)
+        loopImports [] done summarised = return ([], done, summarised)
         loopImports ((home_uid, lvl, mb_pkg, gwib) : ss) done summarised
           | Just summs <- M.lookup cache_key summarised
           = case summs of
               [Right ms] -> do
                 let nk = NodeKey_Module (msKey lvl ms)
-                (rest, uids, summarised', done') <- loopImports ss done summarised
-                return (nk: rest, uids, summarised', done')
+                (rest, summarised', done') <- loopImports ss done summarised
+                return (nk: rest, summarised', done')
               [Left _err] ->
                 loopImports ss done summarised
               _errs ->  do
@@ -1720,24 +1721,35 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
                case mb_s of
                    NotThere -> loopImports ss done summarised
                    External uid -> do
-                    (other_deps, uids, done', summarised') <- loopImports ss done summarised
-                    return (other_deps, (lvl, uid):uids, done', summarised')
+                    let done' = loopUnit done [(lvl, uid)]
+                    (other_deps, done'', summarised') <- loopImports ss done' summarised
+                    return (NodeKey_ExternalUnit lvl uid :  other_deps, done'', summarised')
                    FoundInstantiation iud -> do
-                    (other_deps, uids, done', summarised') <- loopImports ss done summarised
-                    return (NodeKey_Unit iud : other_deps, uids,  done', summarised')
+                    (other_deps, done', summarised') <- loopImports ss done summarised
+                    return (NodeKey_Unit iud : other_deps, done', summarised')
                    FoundHomeWithError (_uid, e) ->  loopImports ss done (Map.insert cache_key [(Left e)] summarised)
                    FoundHome s -> do
                      (done', summarised') <-
                        loopSummaries [(lvl, s)] (done, Map.insert cache_key [Right s] summarised)
-                     (other_deps, uids, final_done, final_summarised) <- loopImports ss done' summarised'
+                     (other_deps, final_done, final_summarised) <- loopImports ss done' summarised'
 
                      -- MP: This assumes that we can only instantiate non home units, which is probably fair enough for now.
-                     return (NodeKey_Module (msKey lvl s) : other_deps, uids, final_done, final_summarised)
+                     return (NodeKey_Module (msKey lvl s) : other_deps, final_done, final_summarised)
           where
             cache_key = (home_uid, lvl, mb_pkg, unLoc <$> gwib)
             home_unit = ue_unitHomeUnit home_uid (hsc_unit_env hsc_env)
             GWIB { gwib_mod = L loc mod, gwib_isBoot = is_boot } = gwib
             wanted_mod = L loc mod
+
+        loopUnit :: Map.Map NodeKey ModuleGraphNode -> [(ModuleStage, UnitId)] -> Map.Map NodeKey ModuleGraphNode
+        loopUnit cache [] = cache
+        loopUnit cache ((lvl, u):uxs) = do
+          let nk = (NodeKey_ExternalUnit lvl u)
+          case Map.lookup nk cache of
+            Just {} -> loopUnit cache uxs
+            Nothing -> case unitDepends <$> lookupUnitId (hsc_units hsc_env) u of
+                        Just us -> loopUnit (loopUnit (Map.insert nk (UnitNode us lvl u) cache) (zip (repeat lvl) us)) uxs
+                        Nothing -> panic "bad"
 
 getRootSummary ::
   [ModuleName] ->
@@ -1884,11 +1896,10 @@ enableCodeGenForTH
   :: Logger
   -> TmpFs
   -> UnitEnv
-  -> UnitState
   -> [ModuleGraphNode]
   -> IO [ModuleGraphNode]
-enableCodeGenForTH logger tmpfs unit_env unit_state =
-  enableCodeGenWhen logger tmpfs TFL_CurrentModule TFL_GhcSession unit_env unit_state
+enableCodeGenForTH logger tmpfs unit_env =
+  enableCodeGenWhen logger tmpfs TFL_CurrentModule TFL_GhcSession unit_env
 
 
 data CodeGenEnable = EnableByteCode | EnableObject | EnableByteCodeAndObject deriving (Eq, Show, Ord)
@@ -1908,15 +1919,14 @@ enableCodeGenWhen
   -> TempFileLifetime
   -> TempFileLifetime
   -> UnitEnv
-  -> UnitState
   -> [ModuleGraphNode]
   -> IO [ModuleGraphNode]
-enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph =
+enableCodeGenWhen logger tmpfs staticLife dynLife unit_env mod_graph =
   mapM enable_code_gen mod_graph
   where
     defaultBackendOf ms = platformDefaultBackend (targetPlatform $ ue_unitFlags (ms_unitid ms) unit_env)
     enable_code_gen :: ModuleGraphNode -> IO ModuleGraphNode
-    enable_code_gen n@(ModuleNode deps uids lvl ms)
+    enable_code_gen n@(ModuleNode deps lvl ms)
       | ModSummary
         { ms_location = ms_location
         , ms_hsc_src = HsSrcFile
@@ -1954,7 +1964,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
                      , ms_hspp_opts = updOptLevel 0 $ new_dflags
                      }
                -- Recursive call to catch the other cases
-               enable_code_gen (ModuleNode deps uids lvl ms')
+               enable_code_gen (ModuleNode deps lvl ms')
 
          -- If -fprefer-byte-code then satisfy dependency by enabling bytecode (if normal object not enough)
          -- we only get to this case if the default backend is already generating object files, but we need dynamic
@@ -1964,19 +1974,19 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
                      { ms_hspp_opts = gopt_set (ms_hspp_opts ms) Opt_ByteCodeAndObjectCode
                      }
                -- Recursive call to catch the other cases
-               enable_code_gen (ModuleNode deps uids lvl ms')
+               enable_code_gen (ModuleNode deps lvl ms')
          | dynamic_too_enable enable_spec ms -> do
                let ms' = ms
                      { ms_hspp_opts = gopt_set (ms_hspp_opts ms) Opt_BuildDynamicToo
                      }
                -- Recursive call to catch the other cases
-               enable_code_gen (ModuleNode deps uids lvl ms')
+               enable_code_gen (ModuleNode deps lvl ms')
          | ext_interp_enable ms -> do
                let ms' = ms
                      { ms_hspp_opts = gopt_set (ms_hspp_opts ms) Opt_ExternalInterpreter
                      }
                -- Recursive call to catch the other cases
-               enable_code_gen (ModuleNode deps uids lvl ms')
+               enable_code_gen (ModuleNode deps lvl ms')
 
          | otherwise -> return n
 
@@ -2031,7 +2041,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
        lcl_dflags   = ms_hspp_opts ms
        internalInterpreter = not (gopt Opt_ExternalInterpreter lcl_dflags)
 
-    (mg, lookup_node) = moduleGraphNodesZero unit_state mod_graph
+    (mg, lookup_node) = moduleGraphNodesZero mod_graph
 
     mk_needed_set roots = Set.fromList $ map fst $ lefts $ map node_payload $ reachablesG2 mg (map (expectJust "needs_th" . lookup_node) (map Left roots))
 
@@ -2057,7 +2067,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
         -- Note we don't need object code for a module if it uses TemplateHaskell itself. Only
         -- it's dependencies.
         [ (msKey lvl ms, code_stage ms)
-        | (ModuleNode _deps _uids lvl ms) <- mod_graph
+        | (ModuleNode _deps lvl ms) <- mod_graph
         , isTemplateHaskellOrQQNonBoot ms
         , not (gopt Opt_UseBytecodeRatherThanObjects (ms_hspp_opts ms))
         ]
@@ -2065,7 +2075,7 @@ enableCodeGenWhen logger tmpfs staticLife dynLife unit_env unit_state mod_graph 
     -- The direct dependencies of modules which require byte code
     need_bc_set =
         [ (msKey lvl ms, code_stage ms)
-        | (ModuleNode _deps _uids lvl ms) <- mod_graph
+        | (ModuleNode _deps lvl ms) <- mod_graph
         , isTemplateHaskellOrQQNonBoot ms
         , gopt Opt_UseBytecodeRatherThanObjects (ms_hspp_opts ms)
         ]

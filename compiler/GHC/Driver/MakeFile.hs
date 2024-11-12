@@ -221,8 +221,9 @@ processDeps _ _ _ _ _ (AcyclicSCC (InstantiationNode _uid node))
       GhcDriverMessage $ DriverInstantiationNodeInDependencyGeneration node
 
 processDeps _dflags _ _ _ _ (AcyclicSCC (LinkNode {})) = return ()
+processDeps _ _ _ _ _ (AcyclicSCC (UnitNode {})) = return ()
 
-processDeps dflags hsc_env excl_mods root hdl (AcyclicSCC (ModuleNode _ _ _ node))
+processDeps dflags hsc_env excl_mods root hdl (AcyclicSCC (ModuleNode _ _ node))
   = do  { let extra_suffixes = depSuffixes dflags
               include_pkg_deps = depIncludePkgDeps dflags
               src_file  = msHsFilePath node
@@ -404,10 +405,10 @@ pprCycle :: [ModuleGraphNode] -> SDoc
 pprCycle summaries = pp_group (CyclicSCC summaries)
   where
     cycle_mods :: [ModuleName]  -- The modules in this cycle
-    cycle_mods = map (moduleName . ms_mod) [ms | ModuleNode _ _ _ ms <- summaries]
+    cycle_mods = map (moduleName . ms_mod) [ms | ModuleNode _ _ ms <- summaries]
 
     pp_group :: SCC ModuleGraphNode -> SDoc
-    pp_group (AcyclicSCC (ModuleNode _ _ _ ms)) = pp_ms ms
+    pp_group (AcyclicSCC (ModuleNode _ _ ms)) = pp_ms ms
     pp_group (AcyclicSCC _) = empty
     pp_group (CyclicSCC mss)
         = assert (not (null boot_only)) $
@@ -417,12 +418,12 @@ pprCycle summaries = pp_group (CyclicSCC summaries)
           pp_ms loop_breaker $$ vcat (map pp_group groups)
         where
           (boot_only, others) = partition is_boot_only mss
-          is_boot_only (ModuleNode _ _ _ ms) = not (any in_group (map (\(_, _, m) -> m) (ms_imps ms)))
+          is_boot_only (ModuleNode _ _ ms) = not (any in_group (map (\(_, _, m) -> m) (ms_imps ms)))
           is_boot_only  _ = False
           in_group (L _ m) = m `elem` group_mods
-          group_mods = map (moduleName . ms_mod) [ms | ModuleNode _ _ _ ms <- mss]
+          group_mods = map (moduleName . ms_mod) [ms | ModuleNode _ _ ms <- mss]
 
-          loop_breaker = head ([ms | ModuleNode _ _ _ ms  <- boot_only])
+          loop_breaker = head ([ms | ModuleNode _ _ ms  <- boot_only])
           all_others   = tail boot_only ++ others
           groups =
             GHC.topSortModuleGraph True (mkModuleGraph all_others) Nothing

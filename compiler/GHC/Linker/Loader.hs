@@ -111,7 +111,6 @@ import System.Win32.Info (getSystemDirectory)
 #endif
 
 import GHC.Utils.Exception
-import GHC.Unit.Module.Graph
 
 -- Note [Linkers and loaders]
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -644,7 +643,7 @@ initLinkDepsOpts hsc_env = opts
             -- MP: This is very inefficient as it destroys sharing of
             -- calculating transitive dependencies. it would be better if we
             -- were explicit about requesting modules at a specific stage.
-            , ldModuleGraph = collapseModuleGraph $ hsc_mod_graph hsc_env
+            , ldModuleGraph = hsc_mod_graph hsc_env
             , ldUnitEnv     = hsc_unit_env hsc_env
             , ldPprOpts     = initSDocContext dflags defaultUserStyle
             , ldFinderCache = hsc_FC hsc_env

@@ -71,6 +71,7 @@ import qualified GHC.Internal.TH.Syntax as TH (Q)
 
 import qualified GHC.LanguageExtensions as LangExt
 import qualified Data.Set as Set
+import GHC.Stack
 
 {-
 ************************************************************************
@@ -525,7 +526,7 @@ rnUntypedSpliceExpr splice
                 -- mod_finalizers: See Note [Delaying modFinalizers in untyped splices].
 
            -- Rename the expanded expression
-           ; (L l expr_rn, fvs) <- setXOptM LangExt.PathCrossStagedPersistence $ checkNoErrs (rnLExpr expr_ps)
+           ; (L l expr_rn, fvs) <- checkNoErrs (rnLExpr expr_ps)
 
            -- rn_splice :: HsUntypedSplice GhcRn is the original TH expression,
            --                                       before expansion
@@ -911,7 +912,7 @@ data SpliceInfo
         -- Note that 'spliceSource' is *renamed* but not *typechecked*
         -- Reason (a) less typechecking crap
         --        (b) data constructors after type checking have been
-        --            changed to their *wrappers*, and that makes them
+        --            changed to their *wrapp----------------ers*, and that makes them
         --            print always fully qualified
 
 -- | outputs splice information for 2 flags which have different output formats:
@@ -973,8 +974,9 @@ checkThLocalTyName name
         ; dflags <- getDynFlags
         ; checkCrossStageLiftingTy dflags top_lvl bind_lvl use_stage use_lvl name } } }
 
-checkThLocalName :: Name -> RnM ()
+checkThLocalName :: HasCallStack => Name -> RnM ()
 checkThLocalName name
+--  | pprTrace "checkTh" (ppr name $$ callStackDoc) False = undefined
   | isUnboundName name   -- Do not report two errors for
   = return ()            --   $(not_in_scope args)
 
@@ -1032,7 +1034,7 @@ checkCrossStageLifting dflags reason top_lvl is_local bind_lvl use_stage use_lvl
   , xopt LangExt.PathCrossStagedPersistence dflags = return ()
   | not is_local
   , xopt LangExt.PathCrossStagedPersistence dflags = return ()
-  | otherwise = failWithTc (TcRnBadlyStaged reason bind_lvl use_lvl)
+  | otherwise = addErrTc (TcRnBadlyStaged reason bind_lvl use_lvl)
 
 check_cross_stage_lifting :: TcRnMessage -> DynFlags -> TopLevelFlag -> Name -> TcRef [PendingRnSplice] -> TcM ()
 check_cross_stage_lifting reason dflags top_lvl name ps_var

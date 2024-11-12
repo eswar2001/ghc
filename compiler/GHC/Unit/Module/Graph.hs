@@ -8,9 +8,8 @@ module GHC.Unit.Module.Graph
    , nodeDependencies
    , emptyMG
    , mkModuleGraph
-   , extendMG
    , extendMGInst
-   , extendMG'
+   , extendModGraph
    , unionMG
    , isTemplateHaskellOrQQNonBoot
    , isExplicitStageMS
@@ -20,6 +19,8 @@ module GHC.Unit.Module.Graph
    , mgModSummaries'
    , mgLookupModule
    , mgTransDeps
+   , CollapseToZero(..)
+   , mgTransDepsZero
    , showModMsg
    , moduleGraphNodeModule
    , moduleGraphNodeModSum
@@ -46,7 +47,9 @@ module GHC.Unit.Module.Graph
 
     , ModNodeKeyWithUid(..)
 
-   , ModuleStage(..)
+   , ModuleStage
+   , minStage
+   , maxStage
    , zeroStage
    , todoStage
    , moduleStageToThLevel
@@ -88,8 +91,6 @@ import Data.Function
 import Data.List (sort, nub)
 import GHC.Data.List.SetOps
 import GHC.Stack
-import GHC.Utils.Panic
-import GHC.Unit.State
 import Language.Haskell.Syntax.ImpExp
 
 -- | A '@ModuleGraphNode@' is a node in the '@ModuleGraph@'.
@@ -100,9 +101,11 @@ data ModuleGraphNode
   -- (backpack dependencies) with the holes (signatures) of the current package.
   = InstantiationNode UnitId InstantiatedUnit
   -- | There is a module summary node for each module, signature, and boot module being built.
-  | ModuleNode [NodeKey] [(ModuleStage, UnitId)] ModuleStage ModSummary
+  | ModuleNode [NodeKey] ModuleStage ModSummary
   -- | Link nodes are whether are are creating a linked product (ie executable/shared object etc) for a unit.
   | LinkNode [NodeKey] UnitId
+  -- Unit nodes are already built, but show the structure of packages
+  | UnitNode [UnitId] ModuleStage UnitId
 
 moduleGraphNodeModule :: ModuleGraphNode -> Maybe ModuleName
 moduleGraphNodeModule mgn = ms_mod_name <$> (moduleGraphNodeModSum mgn)
@@ -110,20 +113,23 @@ moduleGraphNodeModule mgn = ms_mod_name <$> (moduleGraphNodeModSum mgn)
 moduleGraphNodeModSum :: ModuleGraphNode -> Maybe ModSummary
 moduleGraphNodeModSum (InstantiationNode {}) = Nothing
 moduleGraphNodeModSum (LinkNode {})          = Nothing
-moduleGraphNodeModSum (ModuleNode _ _ _ ms)      = Just ms
+moduleGraphNodeModSum (ModuleNode _ _ ms)      = Just ms
+moduleGraphNodeModSum (UnitNode {}) = Nothing
 
 moduleGraphNodeUnitId :: ModuleGraphNode -> UnitId
 moduleGraphNodeUnitId mgn =
   case mgn of
     InstantiationNode uid _iud -> uid
-    ModuleNode _ _lvl _ ms       -> toUnitId (moduleUnit (ms_mod ms))
+    ModuleNode _ _lvl ms       -> toUnitId (moduleUnit (ms_mod ms))
     LinkNode _ uid             -> uid
+    UnitNode _ _ uid              -> uid
 
 instance Outputable ModuleGraphNode where
   ppr = \case
     InstantiationNode _ iuid -> ppr iuid
-    ModuleNode nks uids lvl ms -> ppr (msKey lvl ms) <+> ppr nks <+> ppr uids
+    ModuleNode nks lvl ms -> ppr (msKey lvl ms) <+> ppr nks
     LinkNode uid _     -> text "LN:" <+> ppr uid
+    UnitNode uids st uid  -> text "UN:" <+> ppr st <+> ppr uid <+> text "depends on" <+> ppr uids
 
 instance Eq ModuleGraphNode where
   (==) = (==) `on` mkNodeKey
@@ -134,6 +140,7 @@ instance Ord ModuleGraphNode where
 data NodeKey = NodeKey_Unit {-# UNPACK #-} !InstantiatedUnit
              | NodeKey_Module {-# UNPACK #-} !ModNodeKeyWithUid
              | NodeKey_Link !UnitId
+             | NodeKey_ExternalUnit !ModuleStage !UnitId
   deriving (Eq, Ord)
 
 instance Outputable NodeKey where
@@ -143,22 +150,30 @@ pprNodeKey :: NodeKey -> SDoc
 pprNodeKey (NodeKey_Unit iu) = ppr iu
 pprNodeKey (NodeKey_Module mk) = ppr mk
 pprNodeKey (NodeKey_Link uid)  = ppr uid
+pprNodeKey (NodeKey_ExternalUnit _ uid) = text "E:" <+> ppr uid
 
 nodeKeyUnitId :: NodeKey -> UnitId
 nodeKeyUnitId (NodeKey_Unit iu)   = instUnitInstanceOf iu
 nodeKeyUnitId (NodeKey_Module mk) = mnkUnitId mk
 nodeKeyUnitId (NodeKey_Link uid)  = uid
+nodeKeyUnitId (NodeKey_ExternalUnit _ uid) = uid
 
 nodeKeyLevel :: NodeKey -> ModuleStage
 nodeKeyLevel (NodeKey_Unit {}) = zeroStage
 nodeKeyLevel (NodeKey_Module mk) = mnkLevel mk
 nodeKeyLevel (NodeKey_Link {}) = zeroStage
+nodeKeyLevel (NodeKey_ExternalUnit {}) = zeroStage
 
 nodeKeyModName :: NodeKey -> Maybe ModuleName
 nodeKeyModName (NodeKey_Module mk) = Just (gwib_mod $ mnkModuleName mk)
 nodeKeyModName _ = Nothing
 
 newtype ModuleStage = ModuleStage Int deriving (Eq, Ord)
+
+minStage :: ModuleStage
+minStage = ModuleStage (-10)
+maxStage :: ModuleStage
+maxStage = ModuleStage 10
 
 instance Outputable ModuleStage where
   ppr (ModuleStage p) = ppr p
@@ -174,7 +189,10 @@ moduleStageToThLevel :: ModuleStage -> Int
 moduleStageToThLevel (ModuleStage m) = m
 
 decModuleStage, incModuleStage :: ModuleStage -> ModuleStage
+incModuleStage m | m >= maxStage = m
 incModuleStage (ModuleStage m) = ModuleStage (m + 1)
+
+decModuleStage m | m <= minStage = m
 decModuleStage (ModuleStage m) = ModuleStage (m - 1)
 
 data ModNodeKeyWithUid = ModNodeKeyWithUid { mnkModuleName :: !ModuleNameWithIsBoot
@@ -199,7 +217,8 @@ instance Outputable ModNodeKeyWithUid where
 -- 'GHC.topSortModuleGraph' and 'GHC.Data.Graph.Directed.flattenSCC' to achieve this.
 data ModuleGraph = ModuleGraph
   { mg_mss :: [ModuleGraphNode]
-  , mg_trans_deps :: Map.Map NodeKey (Set.Set NodeKey)
+  , mg_trans_deps :: (Map.Map NodeKey (Set.Set NodeKey), NodeKey -> Maybe ModuleGraphNode)
+  , mg_trans_deps_zero :: TDZ
     -- A cached transitive dependency calculation so that a lot of work is not
     -- repeated whenever the transitive dependencies need to be calculated (for example, hptInstances)
   }
@@ -211,7 +230,8 @@ mapMG f mg@ModuleGraph{..} = mg
   { mg_mss = flip fmap mg_mss $ \case
       InstantiationNode uid iuid -> InstantiationNode uid iuid
       LinkNode uid nks -> LinkNode uid nks
-      ModuleNode deps uid lvl ms  -> ModuleNode deps uid lvl (f ms)
+      ModuleNode deps lvl ms  -> ModuleNode deps lvl (f ms)
+      UnitNode uids st uid -> UnitNode uids st uid
   }
 
 unionMG :: ModuleGraph -> ModuleGraph -> ModuleGraph
@@ -220,14 +240,18 @@ unionMG a b =
   in ModuleGraph {
         mg_mss = new_mss
       , mg_trans_deps = mkTransDeps new_mss
+      , mg_trans_deps_zero = mkTransDepsZero new_mss
       }
 
 
-mgTransDeps :: ModuleGraph -> Map.Map NodeKey (Set.Set NodeKey)
+mgTransDeps :: ModuleGraph -> (Map.Map NodeKey (Set.Set NodeKey), NodeKey -> Maybe ModuleGraphNode)
 mgTransDeps = mg_trans_deps
 
+mgTransDepsZero :: ModuleGraph -> TDZ
+mgTransDepsZero = mg_trans_deps_zero
+
 mgModSummaries :: ModuleGraph -> [ModSummary]
-mgModSummaries mg = [ m | ModuleNode _ _ _lvl m <- mgModSummaries' mg ]
+mgModSummaries mg = [ m | ModuleNode _ _lvl m <- mgModSummaries' mg ]
 
 mgModSummaries' :: ModuleGraph -> [ModuleGraphNode]
 mgModSummaries' = mg_mss
@@ -239,14 +263,14 @@ mgModSummaries' = mg_mss
 mgLookupModule :: ModuleGraph -> Module -> Maybe ModSummary
 mgLookupModule ModuleGraph{..} m = listToMaybe $ mapMaybe go mg_mss
   where
-    go (ModuleNode _ _ _lvl ms)
+    go (ModuleNode _ _lvl ms)
       | NotBoot <- isBootSummary ms
       , ms_mod ms == m
       = Just ms
     go _ = Nothing
 
 emptyMG :: ModuleGraph
-emptyMG = ModuleGraph [] Map.empty
+emptyMG = ModuleGraph [] (Map.empty, const Nothing) Map.empty
 
 isTemplateHaskellOrQQNonBoot :: ModSummary -> Bool
 isTemplateHaskellOrQQNonBoot ms =
@@ -257,22 +281,27 @@ isTemplateHaskellOrQQNonBoot ms =
 isExplicitStageMS :: ModSummary -> Bool
 isExplicitStageMS ms = xopt LangExt.StagedImports (ms_hspp_opts ms)
 
--- | Add an ExtendedModSummary to ModuleGraph. Assumes that the new ModSummary is
--- not an element of the ModuleGraph.
-extendMG :: ModuleGraph -> [NodeKey] -> [(ModuleStage, UnitId)] -> ModuleStage -> ModSummary -> ModuleGraph
-extendMG ModuleGraph{..} deps uid lvl ms = ModuleGraph
-  { mg_mss = ModuleNode deps uid lvl ms : mg_mss
-  , mg_trans_deps = mkTransDeps (ModuleNode deps uid lvl ms : mg_mss)
-  }
+extendModGraph :: ModuleGraph -> ModuleGraphNode -> ModuleGraph
+extendModGraph mg mgn =
+  let res =
+        ModuleGraph {
+            mg_mss = mgn : mg_mss mg
+          , mg_trans_deps = mkTransDeps (mg_mss res)
+          , mg_trans_deps_zero = mkTransDepsZero (mg_mss res)
+        }
+  in res
 
-mkTransDeps :: [ModuleGraphNode] -> Map.Map NodeKey (Set.Set NodeKey)
+-- This collapses to zero.
+mkTransDeps :: [ModuleGraphNode] -> (Map.Map NodeKey (Set.Set NodeKey), NodeKey -> Maybe ModuleGraphNode)
 mkTransDeps mss =
-  let (gg, _lookup_node) = moduleGraphNodes False mss
-  in allReachable gg (mkNodeKey . node_payload)
+  let (gg, lookup_node) = moduleGraphNodes False CollapseToZero mss
+  in (allReachable gg (mkNodeKey . node_payload), fmap summaryNodeSummary . lookup_node)
 
-mkTransDepsZero :: UnitState -> [ModuleGraphNode] -> Map.Map (Either (ModNodeKeyWithUid, ImportStage) UnitId) (Set.Set (Either (ModNodeKeyWithUid, ImportStage) UnitId))
-mkTransDepsZero us mss =
-  let (gg, _lookup_node) = moduleGraphNodesZero us mss
+type TDZ = Map.Map (Either (ModNodeKeyWithUid, ImportStage) UnitId) (Set.Set (Either (ModNodeKeyWithUid, ImportStage) UnitId))
+
+mkTransDepsZero :: [ModuleGraphNode] -> TDZ
+mkTransDepsZero mss =
+  let (gg, _lookup_node) = moduleGraphNodesZero mss
   in allReachable gg node_payload
 
 extendMGInst :: ModuleGraph -> UnitId -> InstantiatedUnit -> ModuleGraph
@@ -280,14 +309,8 @@ extendMGInst mg uid depUnitId = mg
   { mg_mss = InstantiationNode uid depUnitId : mg_mss mg
   }
 
-extendMGLink :: ModuleGraph -> UnitId -> [NodeKey] -> ModuleGraph
-extendMGLink mg uid nks = mg { mg_mss = LinkNode nks uid : mg_mss mg }
-
 extendMG' :: ModuleGraph -> ModuleGraphNode -> ModuleGraph
-extendMG' mg = \case
-  InstantiationNode uid depUnitId -> extendMGInst mg uid depUnitId
-  ModuleNode deps uid lvl ms -> extendMG mg deps uid lvl ms
-  LinkNode deps uid   -> extendMGLink mg uid deps
+extendMG' = extendModGraph
 
 mkModuleGraph :: [ModuleGraphNode] -> ModuleGraph
 mkModuleGraph = foldr (flip extendMG') emptyMG
@@ -299,9 +322,10 @@ collapseModuleGraph = mkModuleGraph . collapseModuleGraphNodes . mgModSummaries'
 collapseModuleGraphNodes :: [ModuleGraphNode] -> [ModuleGraphNode]
 collapseModuleGraphNodes m = nub $ map go m
   where
-    go (ModuleNode deps uid _lvl ms) = ModuleNode (nub $ map collapseNodeKey deps) uid zeroStage ms
+    go (ModuleNode deps _lvl ms) = ModuleNode (nub $ map collapseNodeKey deps) zeroStage ms
     go (LinkNode deps uid) = LinkNode (nub $ map collapseNodeKey deps) uid
     go (InstantiationNode uid iuid) = InstantiationNode uid iuid
+    go (UnitNode uids st uid) = UnitNode uids st uid
 
 collapseNodeKey :: NodeKey -> NodeKey
 collapseNodeKey (NodeKey_Module (ModNodeKeyWithUid mn _lvl uid))
@@ -320,7 +344,8 @@ filterToposortToModules
 filterToposortToModules = mapMaybe $ mapMaybeSCC $ \case
   InstantiationNode _ _ -> Nothing
   LinkNode{} -> Nothing
-  ModuleNode _deps _uid _lvl node -> Just node
+  UnitNode {} -> Nothing
+  ModuleNode _deps _lvl node -> Just node
   where
     -- This higher order function is somewhat bogus,
     -- as the definition of "strongly connected component"
@@ -334,6 +359,7 @@ filterToposortToModules = mapMaybe $ mapMaybeSCC $ \case
         as -> Just $ CyclicSCC as
 
 showModMsg :: DynFlags -> Bool -> ModuleGraphNode -> SDoc
+showModMsg _ _ (UnitNode _ st uid) = ppr uid <+> text "at" <+> ppr st
 showModMsg dflags _ (LinkNode {}) =
       let staticLink = case ghcLink dflags of
                           LinkStaticLib -> True
@@ -345,7 +371,7 @@ showModMsg dflags _ (LinkNode {}) =
       in text exe_file
 showModMsg _ _ (InstantiationNode _uid indef_unit) =
   ppr $ instUnitInstanceOf indef_unit
-showModMsg dflags recomp (ModuleNode _ _  lvl mod_summary) =
+showModMsg dflags recomp (ModuleNode _  lvl mod_summary) =
   if gopt Opt_HideSourcePaths dflags
       then text mod_str
       else hsep $
@@ -391,8 +417,9 @@ nodeDependencies drop_hs_boot_nodes = \case
     LinkNode deps _uid -> deps
     InstantiationNode uid iuid ->
       NodeKey_Module . (\mod -> ModNodeKeyWithUid (GWIB mod NotBoot) zeroStage uid)  <$> uniqDSetToList (instUnitHoles iuid)
-    ModuleNode deps _ _lvl _ms ->
+    ModuleNode deps _lvl _ms ->
       map drop_hs_boot deps
+    UnitNode uids st _ -> map (NodeKey_ExternalUnit st) uids
   where
     -- Drop hs-boot nodes by using HsSrcFile as the key
     hs_boot_key | drop_hs_boot_nodes = NotBoot -- is regular mod or signature
@@ -401,13 +428,20 @@ nodeDependencies drop_hs_boot_nodes = \case
     drop_hs_boot (NodeKey_Module (ModNodeKeyWithUid (GWIB mn IsBoot) lvl uid)) = (NodeKey_Module (ModNodeKeyWithUid (GWIB mn hs_boot_key) lvl uid))
     drop_hs_boot x = x
 
+
+data CollapseToZero = CollapseToZero | UseStages
+
 -- | Turn a list of graph nodes into an efficient queriable graph.
 -- The first boolean parameter indicates whether nodes corresponding to hs-boot files
 -- should be collapsed into their relevant hs nodes.
+
+-- The CollapseToZero parameter
+-- For example, traversals which find type class instances are ignorant to levels.
 moduleGraphNodes :: Bool
+  -> CollapseToZero
   -> [ModuleGraphNode]
   -> (Graph SummaryNode, NodeKey -> Maybe SummaryNode)
-moduleGraphNodes drop_hs_boot_nodes summaries =
+moduleGraphNodes drop_hs_boot_nodes collapse_to_zero summaries =
   (graphFromEdgedVerticesUniq nodes, lookup_node)
   where
     -- Map from module to extra boot summary dependencies which need to be merged in
@@ -416,7 +450,7 @@ moduleGraphNodes drop_hs_boot_nodes summaries =
       where
         go (s, key) =
           case s of
-                ModuleNode __deps _uid _lvl ms | isBootSummary ms == IsBoot, drop_hs_boot_nodes
+                ModuleNode __deps _lvl ms | isBootSummary ms == IsBoot, drop_hs_boot_nodes
                   -- Using nodeDependencies here converts dependencies on other
                   -- boot files to dependencies on dependencies on non-boot files.
                   -> Left (ms_mod ms, nodeDependencies drop_hs_boot_nodes s)
@@ -430,7 +464,11 @@ moduleGraphNodes drop_hs_boot_nodes summaries =
                       (fromMaybe [] extra
                         ++ nodeDependencies drop_hs_boot_nodes s)
 
-    numbered_summaries = zip summaries [1..]
+    collapsed_summaries = case collapse_to_zero of
+                            CollapseToZero -> collapseModuleGraphNodes summaries
+                            UseStages -> summaries
+
+    numbered_summaries = zip collapsed_summaries [1..]
 
     lookup_node :: NodeKey -> Maybe SummaryNode
     lookup_node key = Map.lookup key (unNodeMap node_map)
@@ -472,54 +510,38 @@ zeroSummaryNodeSummary = node_payload
 -- If you are looking at level -1  then the reachable modules are those imported at splice and
 -- then any modules those modules import at zero. (Ie the zero scope for those modules)
 moduleGraphNodesZero ::
-  UnitState
-  -> [ModuleGraphNode]
+     [ModuleGraphNode]
   -> (Graph ZeroSummaryNode, Either (ModNodeKeyWithUid, ImportStage) UnitId -> Maybe ZeroSummaryNode)
-moduleGraphNodesZero us summaries =
+moduleGraphNodesZero summaries =
   (graphFromEdgedVerticesUniq nodes, lookup_node)
   where
     -- Map from module to extra boot summary dependencies which need to be merged in
     (nodes) = mapMaybe go numbered_summaries
 
       where
-        go :: ((Either (ModuleGraphNode, ImportStage) (UnitId, [UnitId])), Int) -> Maybe ZeroSummaryNode
+        go :: (((ModuleGraphNode, ImportStage)), Int) -> Maybe ZeroSummaryNode
         go (s, key) = normal_case s
           where
-           normal_case :: Either (ModuleGraphNode, ImportStage) (UnitId, [UnitId]) -> Maybe ZeroSummaryNode
-           normal_case (Left ((ModuleNode nks uids lvl ms), s)) = Just $
+           normal_case :: (ModuleGraphNode, ImportStage)  -> Maybe ZeroSummaryNode
+           normal_case (((ModuleNode nks lvl ms), s)) = Just $
                   DigraphNode (Left (msKey lvl ms, s)) key $ out_edge_keys (jimmy_lvl lvl s) $
-                       ((map Left $ only_module_deps nks)
-                        ++ (map Right uids))
-           normal_case (Right (u, us)) =
-             Just $ DigraphNode (Right u) key (mapMaybe lookup_key $ map Right us)
+                       mapMaybe classifyDeps nks
+           normal_case ((UnitNode uids _lvl uid), _s) =
+             Just $ DigraphNode (Right uid) key (mapMaybe lookup_key $ map Right uids)
            normal_case _ = Nothing
 
-    only_module_deps ds = [ k | NodeKey_Module k <- ds ]
+
+    classifyDeps (NodeKey_Module k) = Just (Left k)
+    classifyDeps (NodeKey_ExternalUnit lvl u) = Just (Right (lvl, u))
+    classifyDeps _ = Nothing
 
     jimmy_lvl l s = case s of
                       NormalStage -> l
                       QuoteStage -> incModuleStage l
                       SpliceStage -> decModuleStage l
 
-    numbered_summaries :: [(Either (ModuleGraphNode, ImportStage) (UnitId, [UnitId]), Int)]
-    numbered_summaries = zip (([Left (s, l) | s <- summaries, l <- [SpliceStage, QuoteStage, NormalStage]]) ++ map Right (Map.toList all_unit_depends)) [1..]
-
-    all_unit_depends :: Map.Map UnitId [UnitId]
-    all_unit_depends = foldr (\m cache -> go cache (unit_depends m)) Map.empty summaries
-      where
-
-        go cache [] = cache
-        go cache (u:uxs) =
-          case Map.lookup u cache of
-            Just {} -> go cache uxs
-            Nothing -> case unitDepends <$> lookupUnitId us u of
-                          Just us -> go (go (Map.insert u us cache) us) uxs
-                          Nothing -> panic "bad"
-
-
-    unit_depends :: ModuleGraphNode -> [UnitId]
-    unit_depends (ModuleNode _ uids _ _) = map snd $ filter ((== zeroStage) . fst) uids
-    unit_depends _ = []
+    numbered_summaries :: [((ModuleGraphNode, ImportStage), Int)]
+    numbered_summaries = zip (([(s, l) | s <- summaries, l <- [SpliceStage, QuoteStage, NormalStage]])) [0..]
 
     lookup_node :: Either (ModNodeKeyWithUid, ImportStage) UnitId -> Maybe ZeroSummaryNode
     lookup_node key = Map.lookup key node_map
@@ -545,8 +567,9 @@ newtype NodeMap a = NodeMap { unNodeMap :: Map.Map NodeKey a }
 mkNodeKey :: ModuleGraphNode -> NodeKey
 mkNodeKey = \case
   InstantiationNode _ iu -> NodeKey_Unit iu
-  ModuleNode _ _ lvl x -> NodeKey_Module $ msKey lvl x
+  ModuleNode _ lvl x -> NodeKey_Module $ msKey lvl x
   LinkNode _ uid   -> NodeKey_Link uid
+  UnitNode _ st uid -> NodeKey_ExternalUnit st uid
 
 msKey :: ModuleStage -> ModSummary -> ModNodeKeyWithUid
 msKey l ms = ModNodeKeyWithUid (ms_mnwib ms) l (ms_unitid ms)
@@ -561,7 +584,7 @@ type ModNodeKey = ModuleNameWithIsBoot
 moduleGraphModulesBelow :: ModuleGraph -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> Set ModNodeKeyWithUid
 moduleGraphModulesBelow mg uid lvl mn = filtered_mods $ [ mn |  NodeKey_Module mn <- modules_below]
   where
-    td_map = mgTransDeps mg
+    (td_map, _) = mgTransDeps mg
 
     modules_below = maybe [] Set.toList $ Map.lookup (NodeKey_Module (ModNodeKeyWithUid mn lvl uid)) td_map
 

@@ -4045,6 +4045,9 @@ special_id
         | 'unit'                { sL1 $1 (fsLit "unit") }
         | 'dependency'          { sL1 $1 (fsLit "dependency") }
         | 'signature'           { sL1 $1 (fsLit "signature") }
+        | 'quote'               { sL1 $1 (fsLit "quote") }
+        | 'splice'              { sL1 $1 (fsLit "splice") }
+
 
 special_sym :: { Located FastString }
 special_sym : '.'       { sL1 $1 (fsLit ".") }
