@@ -817,7 +817,7 @@ summariseRequirement pn mod_name = do
         ms_hspp_opts = dflags,
         ms_hspp_buf = Nothing
         }
-    let nodes = [NodeKey_Module (ModNodeKeyWithUid (GWIB mn NotBoot) todoStage (homeUnitId home_unit)) | mn <- extra_sig_imports ]
+    let nodes = [(NormalStage, NodeKey_Module (ModNodeKeyWithUid (GWIB mn NotBoot) todoStage (homeUnitId home_unit))) | mn <- extra_sig_imports ]
     return (ModuleNode nodes todoStage ms)
 
 summariseDecl :: PackageName
@@ -936,7 +936,7 @@ hsModuleToModSummary home_keys pn hsc_src modname
           [k | (_, _,  mnwib) <- msDeps ms, let k = NodeKey_Module (ModNodeKeyWithUid (fmap unLoc mnwib) todoStage (moduleUnitId this_mod)), k `elem` home_keys]
 
 
-    return (ModuleNode (mod_nodes ++ inst_nodes) todoStage ms)
+    return (ModuleNode (map (NormalStage,) (mod_nodes ++ inst_nodes)) todoStage ms)
 
 -- | Create a new, externally provided hashed unit id from
 -- a hash.

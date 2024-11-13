@@ -52,7 +52,6 @@ module GHC.Unit.Module.Graph
    , maxStage
    , zeroStage
    , todoStage
-   , moduleStageToThLevel
    , incModuleStage
    , decModuleStage
    , collapseModuleGraph
@@ -101,7 +100,7 @@ data ModuleGraphNode
   -- (backpack dependencies) with the holes (signatures) of the current package.
   = InstantiationNode UnitId InstantiatedUnit
   -- | There is a module summary node for each module, signature, and boot module being built.
-  | ModuleNode [NodeKey] ModuleStage ModSummary
+  | ModuleNode [(ImportStage, NodeKey)] ModuleStage ModSummary
   -- | Link nodes are whether are are creating a linked product (ie executable/shared object etc) for a unit.
   | LinkNode [NodeKey] UnitId
   -- Unit nodes are already built, but show the structure of packages
@@ -168,32 +167,33 @@ nodeKeyModName :: NodeKey -> Maybe ModuleName
 nodeKeyModName (NodeKey_Module mk) = Just (gwib_mod $ mnkModuleName mk)
 nodeKeyModName _ = Nothing
 
-newtype ModuleStage = ModuleStage Int deriving (Eq, Ord)
+data ModuleStage = RunStage | CompileStage deriving (Eq, Ord)
 
 minStage :: ModuleStage
-minStage = ModuleStage (-10)
+minStage = RunStage
 maxStage :: ModuleStage
-maxStage = ModuleStage 10
+maxStage = CompileStage
 
 instance Outputable ModuleStage where
-  ppr (ModuleStage p) = ppr p
+  ppr CompileStage = text "compile"
+  ppr RunStage = text "run"
 
 zeroStage :: ModuleStage
-zeroStage = ModuleStage 1
+zeroStage = RunStage
 
 todoStage :: HasCallStack => ModuleStage
 todoStage -- = pprTrace "todoStage" callStackDoc
           = zeroStage
 
-moduleStageToThLevel :: ModuleStage -> Int
-moduleStageToThLevel (ModuleStage m) = m
+--moduleStageToThLevel :: ModuleStage -> Int
+--moduleStageToThLevel (ModuleStage m) = m
 
 decModuleStage, incModuleStage :: ModuleStage -> ModuleStage
-incModuleStage m | m >= maxStage = m
-incModuleStage (ModuleStage m) = ModuleStage (m + 1)
+incModuleStage RunStage = RunStage
+incModuleStage CompileStage = RunStage
 
-decModuleStage m | m <= minStage = m
-decModuleStage (ModuleStage m) = ModuleStage (m - 1)
+decModuleStage RunStage = CompileStage
+decModuleStage CompileStage = RunStage
 
 data ModNodeKeyWithUid = ModNodeKeyWithUid { mnkModuleName :: !ModuleNameWithIsBoot
                                            , mnkLevel      :: !ModuleStage
@@ -322,7 +322,7 @@ collapseModuleGraph = mkModuleGraph . collapseModuleGraphNodes . mgModSummaries'
 collapseModuleGraphNodes :: [ModuleGraphNode] -> [ModuleGraphNode]
 collapseModuleGraphNodes m = nub $ map go m
   where
-    go (ModuleNode deps _lvl ms) = ModuleNode (nub $ map collapseNodeKey deps) zeroStage ms
+    go (ModuleNode deps _lvl ms) = ModuleNode (nub $ map (bimap (const NormalStage) collapseNodeKey) deps) zeroStage ms
     go (LinkNode deps uid) = LinkNode (nub $ map collapseNodeKey deps) uid
     go (InstantiationNode uid iuid) = InstantiationNode uid iuid
     go (UnitNode uids st uid) = UnitNode uids st uid
@@ -425,8 +425,8 @@ nodeDependencies drop_hs_boot_nodes = \case
     hs_boot_key | drop_hs_boot_nodes = NotBoot -- is regular mod or signature
                 | otherwise          = IsBoot
 
-    drop_hs_boot (NodeKey_Module (ModNodeKeyWithUid (GWIB mn IsBoot) lvl uid)) = (NodeKey_Module (ModNodeKeyWithUid (GWIB mn hs_boot_key) lvl uid))
-    drop_hs_boot x = x
+    drop_hs_boot (i, (NodeKey_Module (ModNodeKeyWithUid (GWIB mn IsBoot) lvl uid))) = (NodeKey_Module (ModNodeKeyWithUid (GWIB mn hs_boot_key) lvl uid))
+    drop_hs_boot (_, x) = x
 
 
 data CollapseToZero = CollapseToZero | UseStages
@@ -524,21 +524,16 @@ moduleGraphNodesZero summaries =
           where
            normal_case :: (ModuleGraphNode, ImportStage)  -> Maybe ZeroSummaryNode
            normal_case (((ModuleNode nks lvl ms), s)) = Just $
-                  DigraphNode (Left (msKey lvl ms, s)) key $ out_edge_keys (jimmy_lvl lvl s) $
-                       mapMaybe classifyDeps nks
+                  DigraphNode (Left (msKey lvl ms, s)) key $ out_edge_keys $
+                       mapMaybe (classifyDeps s) nks
            normal_case ((UnitNode uids _lvl uid), _s) =
              Just $ DigraphNode (Right uid) key (mapMaybe lookup_key $ map Right uids)
            normal_case _ = Nothing
 
 
-    classifyDeps (NodeKey_Module k) = Just (Left k)
-    classifyDeps (NodeKey_ExternalUnit lvl u) = Just (Right (lvl, u))
-    classifyDeps _ = Nothing
-
-    jimmy_lvl l s = case s of
-                      NormalStage -> l
-                      QuoteStage -> incModuleStage l
-                      SpliceStage -> decModuleStage l
+    classifyDeps s (il, (NodeKey_Module k)) | s == il = Just (Left k)
+    classifyDeps s (il, (NodeKey_ExternalUnit lvl u)) | s == il = Just (Right (lvl, u))
+    classifyDeps _ _ = Nothing
 
     numbered_summaries :: [((ModuleGraphNode, ImportStage), Int)]
     numbered_summaries = zip (([(s, l) | s <- summaries, l <- [SpliceStage, QuoteStage, NormalStage]])) [0..]
@@ -556,8 +551,8 @@ moduleGraphNodesZero summaries =
                    , let s = zeroSummaryNodeSummary node
                    ]
 
-    out_edge_keys :: ModuleStage -> [Either ModNodeKeyWithUid (ModuleStage, UnitId)] -> [Int]
-    out_edge_keys m = mapMaybe lookup_key . map (bimap (, NormalStage) snd) . filter (either (\nk -> mnkLevel nk == m) ((== m) . fst))
+    out_edge_keys :: [Either ModNodeKeyWithUid (ModuleStage, UnitId)] -> [Int]
+    out_edge_keys = mapMaybe lookup_key . map (bimap (, NormalStage) snd)
         -- If we want keep_hi_boot_nodes, then we do lookup_key with
         -- IsBoot; else False
 

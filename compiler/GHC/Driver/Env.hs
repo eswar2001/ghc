@@ -81,7 +81,6 @@ import GHC.Utils.Panic
 import GHC.Utils.Misc
 import GHC.Utils.Logger
 
-import GHC.Tc.Types.TH
 import Data.List
 
 
@@ -236,18 +235,17 @@ hptAllInstances hsc_env
     in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
 
 -- | Find instances visible from the given set of imports
-hptInstancesBelow :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> (NameEnv (Set.Set ThLevel), InstEnv, [FamInst])
+hptInstancesBelow :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> (InstEnv, [FamInst])
 hptInstancesBelow hsc_env uid lvl mnwib =
   let
-    mk_bind_env clvl ie = mkNameEnv $ flip zip (repeat (Set.singleton (moduleStageToThLevel clvl))) $ map is_dfun_name (instEnvElts ie)
     mn = gwib_mod mnwib
-    (bind_env, insts, famInsts) =
-        unzip3 $ hptSomeThingsBelowUs (\mlvl mod_info ->
+    (insts, famInsts) =
+        unzip $ hptSomeThingsBelowUs (\_mlvl mod_info ->
                                      let details = hm_details mod_info
                                      -- Don't include instances for the current module
                                      in if moduleName (mi_module (hm_iface mod_info)) == mn
                                           then []
-                                          else [(mk_bind_env mlvl (md_insts details), md_insts details, md_fam_insts details)])
+                                          else [(md_insts details, md_fam_insts details)])
                              True -- Include -hi-boot
                              hsc_env
                              uid
@@ -255,7 +253,7 @@ hptInstancesBelow hsc_env uid lvl mnwib =
                              mnwib
     -- Horrible horrible
     hack = mkInstEnv (nubBy (\c1 c2 -> instanceDFunId c1 == instanceDFunId c2) (concatMap instEnvElts insts))
-  in ((foldl' (plusNameEnv_C Set.union) emptyNameEnv bind_env), hack, concat famInsts)
+  in (hack, concat famInsts)
 
 -- | Get rules from modules "below" this one (in the dependency sense)
 hptRules :: HscEnv -> UnitId -> ModuleStage -> ModuleNameWithIsBoot -> [CoreRule]

@@ -462,7 +462,7 @@ tcRnImports hsc_env import_decls
                 -- modules batch (@--make@) compiled before this one, but
                 -- which are not below this one.
 
-              ; (home_inst_bind_env, home_insts, home_fam_insts) =
+              ; (home_insts, home_fam_insts) =
 
                     hptInstancesBelow hsc_env unitId zeroStage mnwib
 
@@ -481,7 +481,7 @@ tcRnImports hsc_env import_decls
         ; updGblEnv ( \ gbl ->
             gbl {
               tcg_rdr_env      = tcg_rdr_env gbl `plusGlobalRdrEnv` rdr_env,
-              tcg_bind_env     = tcg_bind_env gbl    `plusNameEnv` home_inst_bind_env,
+              tcg_bind_env     = tcg_bind_env gbl,
               tcg_imports      = tcg_imports gbl `plusImportAvails` imports,
               tcg_import_decls = imp_user_spec,
               tcg_rn_imports   = rn_imports,

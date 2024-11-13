@@ -1635,10 +1635,9 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
           -- Add a dependency on the HsBoot file if it exists
           -- This gets passed to the loopImports function which just ignores it if it
           -- can't be found.
-          [(ms_unitid ms, lvl, NoPkgQual, GWIB (noLoc $ ms_mod_name ms) IsBoot) | NotBoot <- [isBootSummary ms] ] ++
-          [(ms_unitid ms, offsetStage lvl st, b, c) | (st, b, c) <- msDeps ms ]
+          [(ms_unitid ms, NormalStage, lvl, NoPkgQual, GWIB (noLoc $ ms_mod_name ms) IsBoot) | NotBoot <- [isBootSummary ms] ] ++
+          [(ms_unitid ms, st, offsetStage lvl st, b, c) | (st, b, c) <- msDeps ms ]
 
-        -- Hacky..
         offsetStage lvl NormalStage = lvl
         offsetStage lvl QuoteStage  = incModuleStage lvl
         offsetStage lvl SpliceStage = decModuleStage lvl
@@ -1684,29 +1683,29 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
 
             hs_file_for_boot
               | HsBootFile <- ms_hsc_src ms
-              = Just $ ((ms_unitid ms), lvl, NoPkgQual, (GWIB (noLoc $ ms_mod_name ms) NotBoot))
+              = Just $ ((ms_unitid ms), NormalStage, lvl, NoPkgQual, (GWIB (noLoc $ ms_mod_name ms) NotBoot))
               | otherwise
               = Nothing
 
 
         -- This loops over each import in each summary. It is mutually recursive with loopSummaries if we discover
         -- a new module by doing this.
-        loopImports :: [(UnitId, ModuleStage, PkgQual, GenWithIsBoot (Located ModuleName))]
+        loopImports :: [(UnitId, ImportStage, ModuleStage, PkgQual, GenWithIsBoot (Located ModuleName))]
                         -- Work list: process these modules
              -> M.Map NodeKey ModuleGraphNode
              -> DownsweepCache
                         -- Visited set; the range is a list because
                         -- the roots can have the same module names
                         -- if allow_dup_roots is True
-             -> IO ([NodeKey],
+             -> IO ([(ImportStage, NodeKey)],
                   M.Map NodeKey ModuleGraphNode, DownsweepCache)
                         -- The result is the completed NodeMap
         loopImports [] done summarised = return ([], done, summarised)
-        loopImports ((home_uid, lvl, mb_pkg, gwib) : ss) done summarised
+        loopImports ((home_uid, imp, lvl, mb_pkg, gwib) : ss) done summarised
           | Just summs <- M.lookup cache_key summarised
           = case summs of
               [Right ms] -> do
-                let nk = NodeKey_Module (msKey lvl ms)
+                let nk = (imp, NodeKey_Module (msKey lvl ms))
                 (rest, summarised', done') <- loopImports ss done summarised
                 return (nk: rest, summarised', done')
               [Left _err] ->
@@ -1723,10 +1722,10 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
                    External uid -> do
                     let done' = loopUnit done [(lvl, uid)]
                     (other_deps, done'', summarised') <- loopImports ss done' summarised
-                    return (NodeKey_ExternalUnit lvl uid :  other_deps, done'', summarised')
+                    return ((imp, NodeKey_ExternalUnit lvl uid) :  other_deps, done'', summarised')
                    FoundInstantiation iud -> do
                     (other_deps, done', summarised') <- loopImports ss done summarised
-                    return (NodeKey_Unit iud : other_deps, done', summarised')
+                    return ((imp, NodeKey_Unit iud) : other_deps, done', summarised')
                    FoundHomeWithError (_uid, e) ->  loopImports ss done (Map.insert cache_key [(Left e)] summarised)
                    FoundHome s -> do
                      (done', summarised') <-
@@ -1734,7 +1733,7 @@ downsweep_imports hsc_env old_summaries excl_mods allow_dup_roots (root_errs, ro
                      (other_deps, final_done, final_summarised) <- loopImports ss done' summarised'
 
                      -- MP: This assumes that we can only instantiate non home units, which is probably fair enough for now.
-                     return (NodeKey_Module (msKey lvl s) : other_deps, final_done, final_summarised)
+                     return ((imp, NodeKey_Module (msKey lvl s)) : other_deps, final_done, final_summarised)
           where
             cache_key = (home_uid, lvl, mb_pkg, unLoc <$> gwib)
             home_unit = ue_unitHomeUnit home_uid (hsc_unit_env hsc_env)
