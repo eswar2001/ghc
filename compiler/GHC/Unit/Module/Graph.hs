@@ -87,10 +87,11 @@ import GHC.Linker.Static.Utils
 
 import Data.Bifunctor
 import Data.Function
-import Data.List (sort, nub)
+import Data.List (sort)
 import GHC.Data.List.SetOps
 import GHC.Stack
 import Language.Haskell.Syntax.ImpExp
+import Data.Containers.ListUtils
 
 -- | A '@ModuleGraphNode@' is a node in the '@ModuleGraph@'.
 -- Edges between nodes mark dependencies arising from module imports
@@ -320,10 +321,10 @@ collapseModuleGraph = mkModuleGraph . collapseModuleGraphNodes . mgModSummaries'
 
 -- Collapse information about levels and map everything to level 0
 collapseModuleGraphNodes :: [ModuleGraphNode] -> [ModuleGraphNode]
-collapseModuleGraphNodes m = nub $ map go m
+collapseModuleGraphNodes m = nubOrd $ map go m
   where
-    go (ModuleNode deps _lvl ms) = ModuleNode (nub $ map (bimap (const NormalStage) collapseNodeKey) deps) zeroStage ms
-    go (LinkNode deps uid) = LinkNode (nub $ map collapseNodeKey deps) uid
+    go (ModuleNode deps _lvl ms) = ModuleNode (nubOrd $ map (bimap (const NormalStage) collapseNodeKey) deps) zeroStage ms
+    go (LinkNode deps uid) = LinkNode (nubOrd $ map collapseNodeKey deps) uid
     go (InstantiationNode uid iuid) = InstantiationNode uid iuid
     go (UnitNode uids st uid) = UnitNode uids st uid
 
