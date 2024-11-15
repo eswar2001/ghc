@@ -321,12 +321,9 @@ rnUnboundVar (L l v) = do
   uniq <- newUnique
   return (HsVar (Unbound ()) (L l (mkUnboundNameRdr_ uniq v noSrcSpan)), emptyFVs)
 
-rnExpr (HsVar NoExtField (L l v))
+rnExpr (HsVar NoExtField lv@(L l v))
   | isUnderscore (rdrNameOcc v)
-  = do
-      -- TODO: use rnUnboundVar/deduplicate?
-      uniq <- newUnique
-      return (HsVar (Unbound ()) (L l (mkUnboundNameRdr_ uniq v noSrcSpan)), emptyFVs)
+  = rnUnboundVar lv
 rnExpr (HsVar NoExtField locatedRdrName@(L l v))
   | otherwise
   = do { dflags <- getDynFlags
