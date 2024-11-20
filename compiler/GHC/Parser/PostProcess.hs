@@ -1208,6 +1208,7 @@ checkContextExpr orig_expr@(L (EpAnn l _ cs) _) =
       = check (opi ++ [open_tok], close_tok : cpi, csi) expr
     check (oparens,cparens,cs) (L _ (HsVar _ (L (EpAnn _ (NameAnnOnly (NameParens open closed) []) _) name)))
       | name == nameRdrName (dataConName unitDataCon)
+      , not (isUnderscore (occName name))
       = mkCTuple (oparens ++ [open], closed : cparens, cs) []
     check _ _ = unprocessed
 
@@ -2867,6 +2868,7 @@ mkRecConstrOrUpdate
         -> PV (HsExpr GhcPs)
 mkRecConstrOrUpdate _ (L _ (HsVar _ (L l c))) _lrec (fbinds,dd) anns
   | isRdrDataCon c
+  , not (isUnderscore (occName c))
   = do
       let (fs, ps) = partitionEithers fbinds
       case ps of

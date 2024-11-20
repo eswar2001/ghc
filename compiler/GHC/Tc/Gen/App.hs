@@ -956,7 +956,7 @@ tcVDQ conc_tvs (tvb, inner_ty) arg
        ; tc_inst_forall_arg conc_tvs (tvb, inner_ty) hs_wc_ty }
 
 -- Convert a HsExpr into the equivalent HsType.
--- See [RequiredTypeArguments and the T2T mapping]
+-- See Note [RequiredTypeArguments and the T2T mapping]
 expr_to_type :: LHsExpr GhcRn -> TcM (LHsWcType GhcRn)
 expr_to_type earg =
   case stripParensLHsExpr earg of
