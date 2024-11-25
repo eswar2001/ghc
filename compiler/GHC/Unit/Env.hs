@@ -3,7 +3,7 @@
 module GHC.Unit.Env
     ( UnitEnv (..)
     , initUnitEnv
-    , ueEPS
+    , ueEPS -- Not really needed, get directly type families and rule base!
     , unsafeGetHomeUnit
     , updateHug
     , updateHpt_lazy
@@ -11,14 +11,15 @@ module GHC.Unit.Env
     -- * Unit Env helper functions
     , ue_units
     , ue_currentHomeUnitEnv
+
+    -- Stuff used by Backpack could be simplifeid ehre
     , ue_setUnits
-    , ue_setUnitFlags
     , ue_unit_dbs
     , ue_all_home_unit_ids
     , ue_setUnitDbs
     , ue_hpt
+
     , ue_homeUnit
-    , ue_unsafeHomeUnit
     , ue_setFlags
     , ue_setActiveUnit
     , ue_currentUnit
@@ -39,20 +40,15 @@ module GHC.Unit.Env
     -- * UnitEnvGraph
     , UnitEnvGraph (..)
     , UnitEnvGraphKey
-    , unitEnv_insert
-    , unitEnv_delete
-    , unitEnv_adjust
     , unitEnv_new
     , unitEnv_singleton
     , unitEnv_map
-    , unitEnv_member
     , unitEnv_lookup_maybe
     , unitEnv_lookup
     , unitEnv_keys
     , unitEnv_elts
     , unitEnv_hpts
     , unitEnv_foldWithKey
-    , unitEnv_union
     , unitEnv_mapWithKey
     -- * Invariants
     , assertUnitEnvInvariant
@@ -350,8 +346,8 @@ unitEnv_hpts env = map homeUnitEnv_hpt (Map.elems (unitEnv_graph env))
 unitEnv_foldWithKey :: (b -> UnitEnvGraphKey -> a -> b) -> b -> UnitEnvGraph a -> b
 unitEnv_foldWithKey f z (UnitEnvGraph g)= Map.foldlWithKey' f z g
 
-unitEnv_union :: (a -> a -> a) -> UnitEnvGraph a -> UnitEnvGraph a -> UnitEnvGraph a
-unitEnv_union f (UnitEnvGraph env1) (UnitEnvGraph env2) = UnitEnvGraph (Map.unionWith f env1 env2)
+-- unitEnv_union :: (a -> a -> a) -> UnitEnvGraph a -> UnitEnvGraph a -> UnitEnvGraph a
+-- unitEnv_union f (UnitEnvGraph env1) (UnitEnvGraph env2) = UnitEnvGraph (Map.unionWith f env1 env2)
 
 -- -------------------------------------------------------
 -- Query and modify UnitState in HomeUnitEnv

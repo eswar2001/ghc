@@ -21,7 +21,6 @@ module GHC.Unit.Home.ModInfo
    , addToHpt
    , addHomeModInfoToHpt
    , addListToHpt
-   , lookupHptDirectly
    , lookupHptByModule
    , listToHpt
    , listHMIToHpt
@@ -140,9 +139,6 @@ emptyHomePackageTable  = emptyUDFM
 
 lookupHpt :: HomePackageTable -> ModuleName -> Maybe HomeModInfo
 lookupHpt = lookupUDFM
-
-lookupHptDirectly :: HomePackageTable -> Unique -> Maybe HomeModInfo
-lookupHptDirectly = lookupUDFM_Directly
 
 eltsHpt :: HomePackageTable -> [HomeModInfo]
 eltsHpt = eltsUDFM
