@@ -1,29 +1,36 @@
 -- | Info about modules in the "home" unit
 module GHC.Unit.Home.ModInfo
-   ( HomeModInfo (..)
+   (
+     HomeModInfo (..)
    , HomeModLinkable(..)
-   , homeModInfoObject
-   , homeModInfoByteCode
-   , emptyHomeModInfoLinkable
-   , justBytecode
-   , justObjects
-   , bytecodeAndObjects
    , HomePackageTable
-   , emptyHomePackageTable
-   , lookupHpt
-   , eltsHpt
-   , concatHpt
-   , filterHpt
-   , allHpt
-   , anyHpt
-   , mapHpt
-   , delFromHpt
-   , addToHpt
-   , addHomeModInfoToHpt
-   , addListToHpt
+
+    -- lookup in HPT
    , lookupHptByModule
-   , listToHpt
-   , listHMIToHpt
+   , lookupHpt
+    -- insertion
+   , addHomeModInfoToHpt
+
+   -- , homeModInfoObject
+   -- , homeModInfoByteCode
+   -- , emptyHomeModInfoLinkable
+   -- , justBytecode
+   -- , justObjects
+   -- , bytecodeAndObjects
+   -- , emptyHomePackageTable
+   -- , eltsHpt
+   -- , concatHpt
+   -- , filterHpt
+   -- , allHpt
+   -- , anyHpt
+   -- , mapHpt
+   -- , delFromHpt
+   -- , addToHpt
+   -- , addListToHpt
+   -- , listToHpt
+   -- , listHMIToHpt
+
+    -- * Utilities
    , pprHPT
    )
 where
