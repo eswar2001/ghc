@@ -1,5 +1,8 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE FlexibleInstances #-}
+-- ROMES:TODO: UnitEnv is a clean interface to query about all units loaded,
+-- EPS or otherwise.
+-- ROMES:TODO: CLEAN!!!!
 module GHC.Unit.Env
     ( UnitEnv (..)
     , initUnitEnv
@@ -66,6 +69,8 @@ import GHC.Unit.State
 import GHC.Unit.Home
 import GHC.Unit.Types
 import GHC.Unit.Home.ModInfo
+import GHC.Unit.Home.PackageTable
+import GHC.Unit.Home.Graph
 
 import GHC.Platform
 import GHC.Settings
@@ -177,177 +182,26 @@ preloadUnitsInfo' unit_env ids0 = all_infos
 preloadUnitsInfo :: UnitEnv -> MaybeErr UnitErr [UnitInfo]
 preloadUnitsInfo unit_env = preloadUnitsInfo' unit_env []
 
--- -----------------------------------------------------------------------------
-
-data HomeUnitEnv = HomeUnitEnv
-  { homeUnitEnv_units     :: !UnitState
-      -- ^ External units
-
-  , homeUnitEnv_unit_dbs :: !(Maybe [UnitDatabase UnitId])
-      -- ^ Stack of unit databases for the target platform.
-      --
-      -- This field is populated with the result of `initUnits`.
-      --
-      -- 'Nothing' means the databases have never been read from disk.
-      --
-      -- Usually we don't reload the databases from disk if they are
-      -- cached, even if the database flags changed!
-
-  , homeUnitEnv_dflags :: DynFlags
-    -- ^ The dynamic flag settings
-  , homeUnitEnv_hpt :: HomePackageTable
-    -- ^ The home package table describes already-compiled
-    -- home-package modules, /excluding/ the module we
-    -- are compiling right now.
-    -- (In one-shot mode the current module is the only
-    -- home-package module, so homeUnitEnv_hpt is empty.  All other
-    -- modules count as \"external-package\" modules.
-    -- However, even in GHCi mode, hi-boot interfaces are
-    -- demand-loaded into the external-package table.)
-    --
-    -- 'homeUnitEnv_hpt' is not mutable because we only demand-load
-    -- external packages; the home package is eagerly
-    -- loaded, module by module, by the compilation manager.
-    --
-    -- The HPT may contain modules compiled earlier by @--make@
-    -- but not actually below the current module in the dependency
-    -- graph.
-    --
-    -- (This changes a previous invariant: changed Jan 05.)
-
-  , homeUnitEnv_home_unit :: !(Maybe HomeUnit)
-    -- ^ Home-unit
-  }
-
-instance Outputable HomeUnitEnv where
-  ppr hug = pprHPT (homeUnitEnv_hpt hug)
-
-homeUnitEnv_unsafeHomeUnit :: HomeUnitEnv -> HomeUnit
-homeUnitEnv_unsafeHomeUnit hue = case homeUnitEnv_home_unit hue of
-  Nothing -> panic "homeUnitEnv_unsafeHomeUnit: No home unit"
-  Just h  -> h
-
-mkHomeUnitEnv :: DynFlags -> HomePackageTable -> Maybe HomeUnit -> HomeUnitEnv
-mkHomeUnitEnv dflags hpt home_unit = HomeUnitEnv
-  { homeUnitEnv_units = emptyUnitState
-  , homeUnitEnv_unit_dbs = Nothing
-  , homeUnitEnv_dflags = dflags
-  , homeUnitEnv_hpt = hpt
-  , homeUnitEnv_home_unit = home_unit
-  }
-
 -- | Test if the module comes from the home unit
 isUnitEnvInstalledModule :: UnitEnv -> InstalledModule -> Bool
 isUnitEnvInstalledModule ue m = maybe False (`isHomeInstalledModule` m) hu
   where
     hu = ue_unitHomeUnit_maybe (moduleUnit m) ue
 
+-- -------------------------------------------------------
+-- Operations on arbitrary elements of the home unit graph
+-- -------------------------------------------------------
 
-type HomeUnitGraph = UnitEnvGraph HomeUnitEnv
+ue_findHomeUnitEnv_maybe :: UnitId -> UnitEnv -> Maybe HomeUnitEnv
+ue_findHomeUnitEnv_maybe uid e =
+  unitEnv_lookup_maybe uid (ue_home_unit_graph e)
 
-lookupHugByModule :: Module -> HomeUnitGraph -> Maybe HomeModInfo
-lookupHugByModule mod hug
-  | otherwise = do
-      env <- (unitEnv_lookup_maybe (toUnitId $ moduleUnit mod) hug)
-      lookupHptByModule (homeUnitEnv_hpt env) mod
-
-hugElts :: HomeUnitGraph -> [(UnitId, HomeUnitEnv)]
-hugElts hug = unitEnv_elts hug
-
-addHomeModInfoToHug :: HomeModInfo -> HomeUnitGraph -> HomeUnitGraph
-addHomeModInfoToHug hmi hug = unitEnv_alter go hmi_unit hug
-  where
-    hmi_mod :: Module
-    hmi_mod = mi_module (hm_iface hmi)
-
-    hmi_unit = toUnitId (moduleUnit hmi_mod)
-    _hmi_mn   = moduleName hmi_mod
-
-    go :: Maybe HomeUnitEnv -> Maybe HomeUnitEnv
-    go Nothing = pprPanic "addHomeInfoToHug" (ppr hmi_mod)
-    go (Just hue) = Just (updateHueHpt (addHomeModInfoToHpt hmi) hue)
-
-updateHueHpt :: (HomePackageTable -> HomePackageTable) -> HomeUnitEnv -> HomeUnitEnv
-updateHueHpt f hue =
-  let !hpt =  f (homeUnitEnv_hpt hue)
-  in hue { homeUnitEnv_hpt = hpt }
-
-
-lookupHug :: HomeUnitGraph -> UnitId -> ModuleName -> Maybe HomeModInfo
-lookupHug hug uid mod = unitEnv_lookup_maybe uid hug >>= flip lookupHpt mod . homeUnitEnv_hpt
-
-
-instance Outputable (UnitEnvGraph HomeUnitEnv) where
-  ppr g = ppr [(k, length (homeUnitEnv_hpt  hue)) | (k, hue) <- (unitEnv_elts g)]
-
-
-type UnitEnvGraphKey = UnitId
-
-newtype UnitEnvGraph v = UnitEnvGraph
-  { unitEnv_graph :: Map UnitEnvGraphKey v
-  } deriving (Functor, Foldable, Traversable)
-
-unitEnv_insert :: UnitEnvGraphKey -> v -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_insert unitId env unitEnv = unitEnv
-  { unitEnv_graph = Map.insert unitId env (unitEnv_graph unitEnv)
-  }
-
-unitEnv_delete :: UnitEnvGraphKey -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_delete uid unitEnv =
-    unitEnv
-      { unitEnv_graph = Map.delete uid (unitEnv_graph unitEnv)
-      }
-
-unitEnv_adjust :: (v -> v) -> UnitEnvGraphKey -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_adjust f uid unitEnv = unitEnv
-  { unitEnv_graph = Map.adjust f uid (unitEnv_graph unitEnv)
-  }
-
-unitEnv_alter :: (Maybe v -> Maybe v) -> UnitEnvGraphKey -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_alter f uid unitEnv = unitEnv
-  { unitEnv_graph = Map.alter f uid (unitEnv_graph unitEnv)
-  }
-
-unitEnv_mapWithKey :: (UnitEnvGraphKey -> v -> b) -> UnitEnvGraph v -> UnitEnvGraph b
-unitEnv_mapWithKey f (UnitEnvGraph u) = UnitEnvGraph $ Map.mapWithKey f u
-
-unitEnv_new :: Map UnitEnvGraphKey v -> UnitEnvGraph v
-unitEnv_new m =
-  UnitEnvGraph
-    { unitEnv_graph = m
-    }
-
-unitEnv_singleton :: UnitEnvGraphKey -> v -> UnitEnvGraph v
-unitEnv_singleton active m = UnitEnvGraph
-  { unitEnv_graph = Map.singleton active m
-  }
-
-unitEnv_map :: (v -> v) -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_map f m = m { unitEnv_graph = Map.map f (unitEnv_graph m)}
-
-unitEnv_member :: UnitEnvGraphKey -> UnitEnvGraph v -> Bool
-unitEnv_member u env = Map.member u (unitEnv_graph env)
-
-unitEnv_lookup_maybe :: UnitEnvGraphKey -> UnitEnvGraph v -> Maybe v
-unitEnv_lookup_maybe u env = Map.lookup u (unitEnv_graph env)
-
-unitEnv_lookup :: UnitEnvGraphKey -> UnitEnvGraph v -> v
-unitEnv_lookup u env = fromJust $ unitEnv_lookup_maybe u env
-
-unitEnv_keys :: UnitEnvGraph v -> Set.Set UnitEnvGraphKey
-unitEnv_keys env = Map.keysSet (unitEnv_graph env)
-
-unitEnv_elts :: UnitEnvGraph v -> [(UnitEnvGraphKey, v)]
-unitEnv_elts env = Map.toList (unitEnv_graph env)
-
-unitEnv_hpts :: UnitEnvGraph HomeUnitEnv -> [HomePackageTable]
-unitEnv_hpts env = map homeUnitEnv_hpt (Map.elems (unitEnv_graph env))
-
-unitEnv_foldWithKey :: (b -> UnitEnvGraphKey -> a -> b) -> b -> UnitEnvGraph a -> b
-unitEnv_foldWithKey f z (UnitEnvGraph g)= Map.foldlWithKey' f z g
-
--- unitEnv_union :: (a -> a -> a) -> UnitEnvGraph a -> UnitEnvGraph a -> UnitEnvGraph a
--- unitEnv_union f (UnitEnvGraph env1) (UnitEnvGraph env2) = UnitEnvGraph (Map.unionWith f env1 env2)
+ue_findHomeUnitEnv :: HasDebugCallStack => UnitId -> UnitEnv -> HomeUnitEnv
+ue_findHomeUnitEnv uid e = case unitEnv_lookup_maybe uid (ue_home_unit_graph e) of
+  Nothing -> pprPanic "Unit unknown to the internal unit environment"
+              $  text "unit (" <> ppr uid <> text ")"
+              $$ pprUnitEnvGraph e
+  Just hue -> hue
 
 -- -------------------------------------------------------
 -- Query and modify UnitState in HomeUnitEnv
@@ -356,18 +210,8 @@ unitEnv_foldWithKey f z (UnitEnvGraph g)= Map.foldlWithKey' f z g
 ue_units :: HasDebugCallStack => UnitEnv -> UnitState
 ue_units = homeUnitEnv_units . ue_currentHomeUnitEnv
 
-ue_setUnits :: UnitState -> UnitEnv -> UnitEnv
-ue_setUnits units ue = ue_updateHomeUnitEnv f (ue_currentUnit ue) ue
-  where
-    f hue = hue { homeUnitEnv_units = units  }
-
 ue_unit_dbs :: UnitEnv ->  Maybe [UnitDatabase UnitId]
 ue_unit_dbs = homeUnitEnv_unit_dbs . ue_currentHomeUnitEnv
-
-ue_setUnitDbs :: Maybe [UnitDatabase UnitId] -> UnitEnv -> UnitEnv
-ue_setUnitDbs unit_dbs ue = ue_updateHomeUnitEnv f (ue_currentUnit ue) ue
-  where
-    f hue = hue { homeUnitEnv_unit_dbs = unit_dbs  }
 
 -- -------------------------------------------------------
 -- Query and modify Home Package Table in HomeUnitEnv
@@ -460,21 +304,6 @@ ue_currentUnit :: UnitEnv -> UnitId
 ue_currentUnit = ue_current_unit
 
 
--- -------------------------------------------------------
--- Operations on arbitrary elements of the home unit graph
--- -------------------------------------------------------
-
-ue_findHomeUnitEnv_maybe :: UnitId -> UnitEnv -> Maybe HomeUnitEnv
-ue_findHomeUnitEnv_maybe uid e =
-  unitEnv_lookup_maybe uid (ue_home_unit_graph e)
-
-ue_findHomeUnitEnv :: HasDebugCallStack => UnitId -> UnitEnv -> HomeUnitEnv
-ue_findHomeUnitEnv uid e = case unitEnv_lookup_maybe uid (ue_home_unit_graph e) of
-  Nothing -> pprPanic "Unit unknown to the internal unit environment"
-              $  text "unit (" <> ppr uid <> text ")"
-              $$ pprUnitEnvGraph e
-  Just hue -> hue
-
 ue_updateHomeUnitEnv :: (HomeUnitEnv -> HomeUnitEnv) -> UnitId -> UnitEnv -> UnitEnv
 ue_updateHomeUnitEnv f uid e = e
   { ue_home_unit_graph = unitEnv_adjust f uid $ ue_home_unit_graph e
@@ -530,14 +359,6 @@ assertUnitEnvInvariant u =
 pprUnitEnvGraph :: UnitEnv -> SDoc
 pprUnitEnvGraph env = text "pprInternalUnitMap"
   $$ nest 2 (pprHomeUnitGraph $ ue_home_unit_graph env)
-
-pprHomeUnitGraph :: HomeUnitGraph -> SDoc
-pprHomeUnitGraph unitEnv = vcat (map (\(k, v) -> pprHomeUnitEnv k v) $ Map.assocs $ unitEnv_graph unitEnv)
-
-pprHomeUnitEnv :: UnitId -> HomeUnitEnv -> SDoc
-pprHomeUnitEnv uid env =
-  ppr uid <+> text "(flags:" <+> ppr (homeUnitId_ $ homeUnitEnv_dflags env) <> text "," <+> ppr (fmap homeUnitId $ homeUnitEnv_home_unit env) <> text ")" <+> text "->"
-  $$ nest 4 (pprHPT $ homeUnitEnv_hpt env)
 
 {-
 Note [Multiple Home Units]

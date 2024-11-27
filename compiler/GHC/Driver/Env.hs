@@ -24,13 +24,6 @@ module GHC.Driver.Env
    , runInteractiveHsc
    , hscEPS
    , hscInterp
-   , hptCompleteSigs
-   , hptAllInstances
-   , hptInstancesBelow
-   , hptAnns
-   , hptAllThings
-   , hptSomeThingsBelowUs
-   , hptRules
    , prepareAnnotations
    , discardIC
    , lookupType
@@ -58,6 +51,7 @@ import GHC.Unit.Module.ModGuts
 import GHC.Unit.Module.ModIface
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Home.ModInfo
+import GHC.Unit.Home.PackageTable
 import GHC.Unit.Env
 import GHC.Unit.External
 
@@ -216,91 +210,6 @@ configured via command-line flags (in `GHC.setSessionDynFlags`).
 -- | Retrieve the ExternalPackageState cache.
 hscEPS :: HscEnv -> IO ExternalPackageState
 hscEPS hsc_env = readIORef (euc_eps (ue_eps (hsc_unit_env hsc_env)))
-
-hptCompleteSigs :: HscEnv -> CompleteMatches
-hptCompleteSigs = hptAllThings  (md_complete_matches . hm_details)
-
--- | Find all the instance declarations (of classes and families) from
--- the Home Package Table filtered by the provided predicate function.
--- Used in @tcRnImports@, to select the instances that are in the
--- transitive closure of imports from the currently compiled module.
-hptAllInstances :: HscEnv -> (InstEnv, [FamInst])
-hptAllInstances hsc_env
-  = let (insts, famInsts) = unzip $ flip hptAllThings hsc_env $ \mod_info -> do
-                let details = hm_details mod_info
-                return (md_insts details, md_fam_insts details)
-    in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
-
--- | Find instances visible from the given set of imports
-hptInstancesBelow :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> (InstEnv, [FamInst])
-hptInstancesBelow hsc_env uid mnwib =
-  let
-    mn = gwib_mod mnwib
-    (insts, famInsts) =
-        unzip $ hptSomeThingsBelowUs (\mod_info ->
-                                     let details = hm_details mod_info
-                                     -- Don't include instances for the current module
-                                     in if moduleName (mi_module (hm_iface mod_info)) == mn
-                                          then []
-                                          else [(md_insts details, md_fam_insts details)])
-                             True -- Include -hi-boot
-                             hsc_env
-                             uid
-                             mnwib
-  in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
-
--- | Get rules from modules "below" this one (in the dependency sense)
-hptRules :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> [CoreRule]
-hptRules = hptSomeThingsBelowUs (md_rules . hm_details) False
-
-
--- | Get annotations from modules "below" this one (in the dependency sense)
-hptAnns :: HscEnv -> Maybe (UnitId, ModuleNameWithIsBoot) -> [Annotation]
-hptAnns hsc_env (Just (uid, mn)) = hptSomeThingsBelowUs (md_anns . hm_details) False hsc_env uid mn
-hptAnns hsc_env Nothing = hptAllThings (md_anns . hm_details) hsc_env
-
-hptAllThings :: (HomeModInfo -> [a]) -> HscEnv -> [a]
-hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . snd)
-                                (hugElts (hsc_HUG hsc_env))
-
--- | Get things from modules "below" this one (in the dependency sense)
--- C.f Inst.hptInstances
-hptSomeThingsBelowUs :: (HomeModInfo -> [a]) -> Bool -> HscEnv -> UnitId -> ModuleNameWithIsBoot -> [a]
-hptSomeThingsBelowUs extract include_hi_boot hsc_env uid mn
-  | isOneShot (ghcMode (hsc_dflags hsc_env)) = []
-
-  | otherwise
-  = let hug = hsc_HUG hsc_env
-        mg  = hsc_mod_graph hsc_env
-    in
-    [ thing
-      -- "Finding each non-hi-boot module below me" maybe could be cached in the module
-      -- graph to avoid filtering the boots out of the transitive closure out
-      -- every time this is called
-    | (ModNodeKeyWithUid (GWIB { gwib_mod = mod, gwib_isBoot = is_boot }) mod_uid)
-          <- Set.toList (moduleGraphModulesBelow mg uid mn)
-    , include_hi_boot || (is_boot == NotBoot)
-
-        -- unsavoury: when compiling the base package with --make, we
-        -- sometimes try to look up RULES etc for GHC.Prim. GHC.Prim won't
-        -- be in the HPT, because we never compile it; it's in the EPT
-        -- instead. ToDo: clean up, and remove this slightly bogus filter:
-    , mod /= moduleName gHC_PRIM
-    , not (mod == gwib_mod mn && uid == mod_uid)
-
-        -- Look it up in the HPT
-    , let things = case lookupHug hug mod_uid mod of
-                    Just info -> extract info
-                    Nothing -> pprTrace "WARNING in hptSomeThingsBelowUs" msg mempty
-          msg = vcat [text "missing module" <+> ppr mod,
-                     text "When starting from"  <+> ppr mn,
-                     text "below:" <+> ppr (moduleGraphModulesBelow mg uid mn),
-                      text "Probable cause: out-of-date interface files"]
-                        -- This really shouldn't happen, but see #962
-    , thing <- things
-    ]
-
-
 
 -- | Deal with gathering annotations in from all possible places
 --   and combining them into a single 'AnnEnv'

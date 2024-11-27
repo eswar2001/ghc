@@ -442,7 +442,7 @@ addUnit u = do
     -- update platform constants
     dflags <- liftIO $ updatePlatformConstants dflags0 mconstants
 
-    let unit_env = ue_setUnits unit_state $ ue_setUnitDbs (Just dbs) $ UnitEnv
+    let unit_env = UnitEnv
           { ue_platform  = targetPlatform dflags
           , ue_namever   = ghcNameVersion dflags
           , ue_current_unit = homeUnitId home_unit
@@ -450,7 +450,7 @@ addUnit u = do
           , ue_home_unit_graph =
                 unitEnv_singleton
                     (homeUnitId home_unit)
-                    (mkHomeUnitEnv dflags (ue_hpt old_unit_env) (Just home_unit))
+                    (mkHomeUnitEnv unit_state (Just dbs) dflags (ue_hpt old_unit_env) (Just home_unit))
           , ue_eps       = ue_eps old_unit_env
           }
     setSession $ hscSetFlags dflags $ hsc_env { hsc_unit_env = unit_env }
