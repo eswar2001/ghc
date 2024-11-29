@@ -151,6 +151,8 @@ import GHC.Iface.Errors.Types
 
 import qualified GHC.Data.Word64Set as W
 import GHC.Data.Graph.Directed.Reachability
+import qualified GHC.Unit.Home.Graph as HUG
+import GHC.Unit.Home.PackageTable
 
 -- -----------------------------------------------------------------------------
 -- Loading the program
@@ -204,7 +206,7 @@ depanalE diag_wrapper msg excluded_mods allow_dup_roots = do
                           `unionMessages` unused_pkg_err
                           `unionMessages` unknown_module_err
 
-        all_errs <- liftIO $ unitEnv_foldWithKey one_unit_messages (return emptyMessages) (hsc_HUG hsc_env)
+        all_errs <- liftIO $ HUG.unitEnv_foldWithKey one_unit_messages (return emptyMessages) (hsc_HUG hsc_env)
         logDiagnostics (GhcDriverMessage <$> all_errs)
         setSession hsc_env { hsc_mod_graph = mod_graph }
         pure (emptyMessages, mod_graph)
@@ -773,7 +775,6 @@ load' mhmi_cache how_much diag_wrapper mHscMessage mod_graph = do
     -- before we unload anything, make sure we don't leave an old
     -- interactive context around pointing to dead bindings.  Also,
     -- write an empty HPT to allow the old HPT to be GC'd.
-
     let pruneHomeUnitEnv hme = hme { homeUnitEnv_hpt = emptyHomePackageTable }
     setSession $ discardIC $ hscUpdateHUG (unitEnv_map pruneHomeUnitEnv) hsc_env
     hsc_env <- getSession
