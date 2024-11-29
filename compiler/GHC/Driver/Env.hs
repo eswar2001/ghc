@@ -13,7 +13,7 @@ module GHC.Driver.Env
    , hsc_all_home_unit_ids
    , hscUpdateLoggerFlags
    , hscUpdateHUG
-   -- , hscUpdateHPT
+   , hscInsertHPT
    , hscSetActiveHomeUnit
    , hscSetActiveUnitId
    , hscActiveUnitId
