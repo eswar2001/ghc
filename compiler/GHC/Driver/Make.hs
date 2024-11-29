@@ -1325,7 +1325,7 @@ upsweep_mod hsc_env mHscMessage old_hmi summary mod_index nmods =  do
   -- used to only happen with the bytecode backend, but with
   -- @-fprefer-byte-code@, @HomeModInfo@ has bytecode even when generating
   -- object code, see #25230.
-  addSptEntries (hscUpdateHPT (\hpt -> addToHpt hpt (ms_mod_name summary) hmi) hsc_env)
+  addSptEntries (hscInsertHPT (ms_mod_name summary) hmi hsc_env)
                 (homeModInfoByteCode hmi)
 
   return hmi
@@ -2496,10 +2496,6 @@ addDepsToHscEnv ::  [HomeModInfo] -> HscEnv -> HscEnv
 addDepsToHscEnv deps hsc_env =
   hscUpdateHUG (\hug -> foldr addHomeModInfoToHug hug deps) hsc_env
 
-setHPT ::  HomePackageTable -> HscEnv -> HscEnv
-setHPT deps hsc_env =
-  hscUpdateHPT (const $ deps) hsc_env
-
 setHUG ::  HomeUnitGraph -> HscEnv -> HscEnv
 setHUG deps hsc_env =
   hscUpdateHUG (const $ deps) hsc_env
@@ -2607,20 +2603,22 @@ executeCompileNode k n !old_hmi hug mrehydrate_mods mod = do
 
 rehydrate :: HscEnv        -- ^ The HPT in this HscEnv needs rehydrating.
           -> [HomeModInfo] -- ^ These are the modules we want to rehydrate.
-          -> IO HscEnv
+          -> IO [HomeModInfo]
 rehydrate hsc_env hmis = do
   debugTraceMsg logger 2 $ (
      text "Re-hydrating loop: " <+> (ppr (map (mi_module . hm_iface) hmis)))
-  new_mods <- fixIO $ \new_mods -> do
-      let new_hpt = addListToHpt old_hpt new_mods
-      let new_hsc_env = hscUpdateHPT_lazy (const new_hpt) hsc_env
-      mds <- initIfaceCheck (text "rehydrate") new_hsc_env $
-                mapM (typecheckIface . hm_iface) hmis
-      let new_mods = [ (mn,hmi{ hm_details = details })
-                     | (hmi,details) <- zip hmis mds
-                     , let mn = moduleName (mi_module (hm_iface hmi)) ]
-      return new_mods
-  return $ setHPT (foldl' (\old (mn, hmi) -> addToHpt old mn hmi) old_hpt new_mods) hsc_env
+  -- When the HPT was pure we had to tie a knot to update the ModDetails in the
+  -- HPT required to update those ModDetails, but since it was made an IORef we
+  -- just have to make sure the new ModDetails are "reset" so that the new
+  -- modules are looked up in HPT when it is forced. If we didn't "reset" the
+  -- ModDetails, modules in a loop would refer the wrong (hs-boot) definitions
+  -- (as explained in Note [Rehydrating Modules]).
+  mds <- initIfaceCheck (text "rehydrate") hsc_env $
+            mapM (typecheckIface . hm_iface) hmis
+  let new_mods = [ (mn,hmi{ hm_details = details })
+                 | (hmi,details) <- zip hmis mds
+                 , let mn = moduleName (mi_module (hm_iface hmi)) ]
+  return new_mods
 
   where
     logger  = hsc_logger hsc_env

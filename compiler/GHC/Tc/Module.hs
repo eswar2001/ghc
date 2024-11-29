@@ -152,6 +152,7 @@ import GHC.Types.SourceFile
 import GHC.Types.PkgQual
 import qualified GHC.LanguageExtensions as LangExt
 
+import GHC.Unit.Env as UnitEnv
 import GHC.Unit.External
 import GHC.Unit.Types
 import GHC.Unit.State
@@ -462,7 +463,7 @@ tcRnImports hsc_env import_decls
                 -- which are not below this one.
               ; (home_insts, home_fam_insts) =
 
-                    hptInstancesBelow hsc_env unitId mnwib
+                    UnitEnv.hugInstancesBelow (hsc_unit_env hsc_env) unitId mnwib
 
               } ;
 
@@ -2115,7 +2116,7 @@ runTcInteractive hsc_env thing_inside
 
        ; updEnvs upd_envs thing_inside }
   where
-    (home_insts, home_fam_insts) = hptAllInstances hsc_env
+    (home_insts, home_fam_insts) = UnitEnv.hugAllInstances (hsc_unit_env hsc_env)
 
     icxt                     = hsc_IC hsc_env
     (ic_insts, ic_finsts)    = ic_instances icxt

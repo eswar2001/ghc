@@ -301,6 +301,8 @@ import GHC.Types.Unique.FM
 import GHC.Types.Unique.DFM
 import GHC.Cmm.Config (CmmConfig)
 import Data.Bifunctor
+import GHC.Unit.Home.Graph (mkHomeUnitEnv)
+import GHC.Unit.Home.PackageTable
 
 {- **********************************************************************
 %*                                                                      *
@@ -313,7 +315,7 @@ newHscEnv top_dir dflags = newHscEnvWithHUG top_dir dflags (homeUnitId_ dflags) 
   where
     home_unit_graph = unitEnv_singleton
                         (homeUnitId_ dflags)
-                        (mkHomeUnitEnv dflags emptyHomePackageTable Nothing)
+                        (mkHomeUnitEnv emptyUnitState Nothing dflags emptyHomePackageTable Nothing)
 
 newHscEnvWithHUG :: FilePath -> DynFlags -> UnitId -> HomeUnitGraph -> IO HscEnv
 newHscEnvWithHUG top_dir top_dynflags cur_unit home_unit_graph = do
@@ -978,8 +980,7 @@ loadByteCode iface mod_sum = do
 
 add_iface_to_hpt :: ModIface -> ModDetails -> HscEnv -> HscEnv
 add_iface_to_hpt iface details =
-  hscUpdateHPT $ \ hpt ->
-    addToHpt hpt (moduleName (mi_module iface))
+  hscInsertHPT (moduleName (mi_module iface))
     (HomeModInfo iface details emptyHomeModInfoLinkable)
 
 -- Knot tying!  See Note [Knot-tying typecheckIface]

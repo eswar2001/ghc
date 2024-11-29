@@ -422,7 +422,7 @@ import GHC.Types.PkgQual
 import GHC.Types.Unique.FM
 
 import GHC.Unit
-import GHC.Unit.Env
+import GHC.Unit.Env as UnitEnv
 import GHC.Unit.External
 import GHC.Unit.Finder
 import GHC.Unit.Module.ModIface
@@ -684,7 +684,7 @@ setUnitDynFlagsNoCheck uid dflags1 = do
   let !unit_env1 =
         if homeUnitId_ dflags /= uid
           then
-            ue_renameUnitId
+            UnitEnv.renameUnitId
                   uid
                   (homeUnitId_ dflags)
                   unit_env0

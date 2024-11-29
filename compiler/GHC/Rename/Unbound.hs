@@ -53,11 +53,10 @@ import GHC.Types.Hint
 import GHC.Types.SrcLoc as SrcLoc
 import GHC.Types.Name
 import GHC.Types.Name.Reader
-import GHC.Types.Unique.DFM (udfmToList)
 
 import GHC.Unit.Module
 import GHC.Unit.Module.Imported
-import GHC.Unit.Home.ModInfo
+import GHC.Unit.Home.PackageTable
 
 import GHC.Data.Bag
 import GHC.Utils.Outputable (empty)
@@ -371,11 +370,13 @@ importSuggestions looking_for global_env hpt currMod imports rdr_name
   show_not_imported_line modnam
       | modnam `elem` glob_mods               = False    -- #14225     -- 1
       | moduleName currMod == modnam          = False                  -- 2.1
-      | is_last_loaded_mod modnam hpt_uniques = False                  -- 2.2
+      | is_last_loaded_mod modnam             = False                  -- 2.2
       | otherwise                             = True
     where
-      hpt_uniques = map fst (udfmToList hpt)
-      is_last_loaded_mod modnam uniqs = lastMaybe uniqs == Just (getUnique modnam)
+      -- the HPT now caches the last added module, so we ask if this is the
+      -- last loaded module in O(1) as opposed to before O(n) where n was the
+      -- number of modules in the HPT.
+      is_last_loaded_mod modnam = hptLastLoadedKey hpt == Just (getUnique modnam)
       glob_mods = nub [ mod
                       | gre <- globalRdrEnvElts global_env
                       , (mod, _) <- qualsInScope gre

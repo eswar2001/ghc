@@ -123,6 +123,7 @@ import System.Directory ( createDirectoryIfMissing
 import GHC.Unit.Finder.Types
 import GHC.Unit.Finder (findObjectLinkableMaybe, findHomeModule)
 import GHC.Driver.Config.Finder (initFinderOpts)
+import qualified GHC.Unit.Home.Graph as HUG
 
 data LinkerStats = LinkerStats
   { bytesPerModule     :: !(Map Module Word64) -- ^ number of bytes linked per module
@@ -483,11 +484,11 @@ computeLinkDependencies cfg unit_env link_spec finder_opts finder_cache ar_cache
   new_required_blocks_var <- newIORef []
   let load_info mod = do
         -- Adapted from the tangled code in GHC.Linker.Loader.getLinkDeps.
-        linkable <- case lookupHugByModule mod (ue_home_unit_graph unit_env) of
+        linkable <- HUG.lookupHugByModule mod (ue_home_unit_graph unit_env) >>= \case
           Nothing ->
                 -- It's not in the HPT because we are in one shot mode,
                 -- so use the Finder to get a ModLocation...
-              case ue_homeUnit unit_env of
+              case homeUnit unit_env of
                 Nothing -> pprPanic "getDeps: No home-unit: " (pprModule mod)
                 Just home_unit -> do
                     mb_stuff <- findHomeModule finder_cache finder_opts home_unit (moduleName mod)
@@ -671,7 +672,7 @@ getPackageArchives cfg unit_env units =
                         , l <- getInstalledPackageHsLibs  ue_state u
                         ]
   where
-    ue_state = ue_units unit_env
+    ue_state = homeUnitState unit_env
 
     -- XXX the profiling library name is probably wrong now
     profSuff | csProf cfg = "_p"

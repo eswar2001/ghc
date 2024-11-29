@@ -53,6 +53,7 @@ import GHC.Unit.Module
 import GHC.Unit.Module.ModSummary
 import GHC.Unit.Module.ModIface
 import GHC.Unit.Home.ModInfo
+import GHC.Unit.Home.PackageTable
 
 import GHC.Core
 import GHC.Core.TyCon
