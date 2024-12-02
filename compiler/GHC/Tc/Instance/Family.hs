@@ -270,9 +270,10 @@ checkFamInstConsistency directlyImpMods
                       then mod:deps
                       else deps
 
-             ; hpt_fam_insts = HUG.famInstances hug
-
              }
+
+       ; hpt_fam_insts <- liftIO $ HUG.famInstances hug
+
 
        ; checkMany hpt_fam_insts modConsistent directlyImpMods
        }

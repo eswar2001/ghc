@@ -2342,14 +2342,16 @@ getCompleteMatchesTcM
   = do { hsc_env <- getTopEnv
        ; tcg_env <- getGblEnv
        ; eps <- liftIO $ hscEPS hsc_env
-       ; return $ localAndImportedCompleteMatches (tcg_complete_matches tcg_env) (hsc_unit_env hsc_env) eps
+       ; liftIO $ localAndImportedCompleteMatches (tcg_complete_matches tcg_env) (hsc_unit_env hsc_env) eps
        }
 
-localAndImportedCompleteMatches :: CompleteMatches -> UnitEnv -> ExternalPackageState -> CompleteMatches
-localAndImportedCompleteMatches tcg_comps unit_env eps =
-     tcg_comps                -- from the current module
+localAndImportedCompleteMatches :: CompleteMatches -> UnitEnv -> ExternalPackageState -> IO CompleteMatches
+localAndImportedCompleteMatches tcg_comps unit_env eps = do
   -- ROMES:TODO: this whole could be a single query to the UnitEnv, rather than
   -- fetching the HUG and EPS separately. this is the only occurrence of
   -- hugcompletesigs/hptcompletesigs...
-  ++ hugCompleteSigs unit_env -- from the home package
-  ++ eps_complete_matches eps -- from imports
+  hugCSigs <- hugCompleteSigs unit_env
+  return $
+       tcg_comps                -- from the current module
+    ++ hugCSigs                 -- from the home package
+    ++ eps_complete_matches eps -- from imports

@@ -218,7 +218,8 @@ prepareAnnotations hsc_env mb_guts = do
         -- otherwise load annotations from all home package table
         -- entries regardless of dependency ordering.
         get_mod mg = (moduleUnitId (mg_module mg), GWIB (moduleName (mg_module mg)) NotBoot)
-        home_pkg_anns  = (mkAnnEnv . hugAnns (hsc_unit_env hsc_env)) $ fmap get_mod mb_guts
+    home_pkg_anns  <- hugAnnsBelow (hsc_unit_env hsc_env) $ fmap get_mod mb_guts
+    let
         other_pkg_anns = eps_ann_env eps
         ann_env        = foldl1' plusAnnEnv $ catMaybes [mb_this_module_anns,
                                                          Just home_pkg_anns,

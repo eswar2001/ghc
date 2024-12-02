@@ -99,11 +99,11 @@ module GHC.Unit.Env
     --
     -- | The @hug@ prefix means the function returns only things found in home
     -- units.
-    , hugAnns
-    , hugRules
     , hugCompleteSigs
-    , hugInstancesBelow
     , hugAllInstances
+    , hugAnnsBelow
+    , hugRulesBelow
+    , hugInstancesBelow
     )
 where
 
@@ -131,7 +131,7 @@ import GHC.Unit.Module.ModIface
 import GHC.Unit.Module
 import qualified Data.Set as Set
 
-import GHC.Core (CoreRule)
+import GHC.Core.Rules
 import GHC.Types.Annotations
 import GHC.Types.CompleteMatch
 import GHC.Core.InstEnv
@@ -144,29 +144,29 @@ import GHC.Core.FamInstEnv
 -- | Get annotations from all modules "below" this one (in the dependency
 -- sense) within the home units. If the module is @Nothing@, returns /all/
 -- annotations in the home units.
-hugAnns :: UnitEnv -> Maybe (UnitId, ModuleNameWithIsBoot) -> [Annotation]
-hugAnns = undefined
+hugAnnsBelow :: UnitEnv -> Maybe (UnitId, ModuleNameWithIsBoot) -> IO AnnEnv
+hugAnnsBelow = HUG.annsBelow . ue_home_unit_graph
 
 ---- | Get rules from modules "below" this one (in the dependency sense) within
 --the home units.
-hugRules :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> [CoreRule]
-hugRules = undefined
+hugRulesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
+hugRulesBelow = HUG.rulesBelow . ue_home_unit_graph
 
 -- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
 -- all home units.
-hugCompleteSigs :: UnitEnv -> CompleteMatches
-hugCompleteSigs = undefined
+hugCompleteSigs :: UnitEnv -> IO CompleteMatches
+hugCompleteSigs = HUG.completeSigs . ue_home_unit_graph
 
 -- | Find instances visible from the given set of imports
-hugInstancesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> (InstEnv, [FamInst])
-hugInstancesBelow = undefined
+hugInstancesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
+hugInstancesBelow = HUG.instancesBelow . ue_home_unit_graph
 
 -- | Find all the instance declarations (of classes and families) from
 -- the Home Package Table filtered by the provided predicate function.
 -- Used in @tcRnImports@, to select the instances that are in the
 -- transitive closure of imports from the currently compiled module.
-hugAllInstances :: UnitEnv -> (InstEnv, [FamInst])
-hugAllInstances = undefined
+hugAllInstances :: UnitEnv -> IO (InstEnv, [FamInst])
+hugAllInstances = HUG.allInstances . ue_home_unit_graph
 
 --------------------------------------------------------------------------------
 -- TODO::....
