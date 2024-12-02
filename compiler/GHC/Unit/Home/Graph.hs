@@ -120,13 +120,11 @@ allCompleteSigs hug = foldr go (pure []) hug where
 -- Used in @tcRnImports@, to select the instances that are in the
 -- transitive closure of imports from the currently compiled module.
 allInstances :: HomeUnitGraph -> IO (InstEnv, [FamInst])
+-- ROMES:TODO: Figure out why the return type of allInstances is this
+-- "[FamInstance]" rather than the something like "famInstances"
 allInstances hug = foldr go (pure (emptyInstEnv, [])) hug where
   go hue = liftA2 (\(a,b) (a',b') -> (a `unionInstEnv` a', b ++ b'))
                   (hptAllInstances (homeUnitEnv_hpt hue))
-
-
--- ROMES:TODO: Figure out why the return type of allInstances is this
--- "[FamInstance]" rather than the something like "famInstances"
 
 -- | ROMES:TODO: Write a comment
 allFamInstances :: HomeUnitGraph -> IO (ModuleEnv FamInstEnv)

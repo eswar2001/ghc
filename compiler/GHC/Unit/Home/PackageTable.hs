@@ -42,8 +42,8 @@ module GHC.Unit.Home.PackageTable
   , newHomePackageTable
 
     -- * Lookups in the HPT
-  , lookupHptByModule
   , lookupHpt
+  , lookupHptByModule
 
     -- * Extending the HPT
   , addHomeModInfoToHpt
@@ -76,26 +76,24 @@ module GHC.Unit.Home.PackageTable
 import GHC.Prelude
 import GHC.Data.Maybe
 
-import Data.List (sortOn)
-import Data.Ord
 import Data.IORef
+import Control.Monad ((<$!>))
 import qualified Data.Set as Set
 
+import GHC.Core.FamInstEnv
+import GHC.Core.InstEnv
+import GHC.Core.Rules
+import GHC.Linker.Types
+import GHC.Types.Annotations
+import GHC.Types.CompleteMatch
 import GHC.Types.Unique
 import GHC.Types.Unique.DFM
-import GHC.Linker.Types
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Module
 import GHC.Unit.Module.Deps
+import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModIface
 import GHC.Utils.Outputable
-import Control.Monad ((<$!>))
-
-import GHC.Core.Rules
-import GHC.Types.Annotations
-import GHC.Types.CompleteMatch
-import GHC.Core.InstEnv
-import GHC.Core.FamInstEnv
 
 -- | Helps us find information about modules in the home package
 data HomePackageTable = HPT {
@@ -111,7 +109,7 @@ data HomePackageTable = HPT {
     --
     -- The elements of this table may be updated (e.g. on rehydration).
     --
-    -- ROMES:TODO: Explain
+    -- ROMES:TODO: Explain!!!!!
 
     hasHoles :: !Bool,
     -- ^ Does this HPT have any module with a hole?
@@ -138,8 +136,13 @@ data HomePackageTable = HPT {
     -- boot modules).
   }
 
--- romes:todo: use a MutableArray directly?
+-- | Create a new 'HomePackageTable'.
+--
+-- Be careful not to share it across e.g. different units, since it uses a
+-- mutable variable under the hood to keep the monotonically increasing list of
+-- loaded modules.
 newHomePackageTable :: IO HomePackageTable
+-- romes:todo: use a MutableArray directly?
 newHomePackageTable = do
   table <- newIORef emptyUDFM
   return HPT{table, hasHoles=False, lastLoadedKey=Nothing}
@@ -148,11 +151,16 @@ newHomePackageTable = do
 -- * Lookups in the HPT
 --------------------------------------------------------------------------------
 
+-- | Lookup the 'HomeModInfo' of a module in the HPT, given its name.
+lookupHpt :: HomePackageTable -> ModuleName -> IO (Maybe HomeModInfo)
+lookupHpt HPT{table=hpt} mn = (`lookupUDFM` mn) <$!> readIORef hpt
+
+-- | Lookup the 'HomeModInfo' of a 'Module' in the HPT.
 lookupHptByModule :: HomePackageTable -> Module -> IO (Maybe HomeModInfo)
--- The HPT is indexed by ModuleName, not Module,
--- we must check for a hit on the right Module
 lookupHptByModule hpt mod
-  = lookupHpt hpt (moduleName mod) >>= pure . \case
+  = -- The HPT is indexed by ModuleName, not Module,
+    -- we must check for a hit on the right Module
+    lookupHpt hpt (moduleName mod) >>= pure . \case
       Just hm | mi_module (hm_iface hm) == mod -> Just hm
       _otherwise                               -> Nothing
 
@@ -160,12 +168,29 @@ lookupHptByModule hpt mod
 -- * Extending the HPT
 --------------------------------------------------------------------------------
 
+-- | Add a new module to the HPT.
+--
+-- A very fundamental operation of the HPT!
+--
+-- $O(1)$
 addHomeModInfoToHpt :: HomeModInfo -> HomePackageTable -> IO HomePackageTable
 addHomeModInfoToHpt hmi hpt = addToHpt hpt (moduleName (mi_module (hm_iface hmi))) hmi
+  where
+    addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
+    addToHpt HPT{table=hptr, hasHoles} mn hmi = do
+      atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
+      return
+        HPT{ table = hptr
+           , hasHoles = hasHoles && isHoleModule (mi_semantic_module (hm_iface hmi))
+           , lastLoadedKey = Just $! getUnique mn
+           }
 
 ----------------------------------------------------------------------------------
 ---- * Queries
 ----------------------------------------------------------------------------------
+-- TODO: I think we can eventually do these queries in O(1)? Since, at least
+-- after all rehydration is done, we can cache some of this stuff if it is used
+-- a lot?
 
 -- | Is there any module in this HPT which has a backpack hole?
 --
@@ -179,34 +204,38 @@ hptHasHoles HPT{hasHoles} = hasHoles
 hptLastLoadedKey :: HomePackageTable -> Maybe Unique
 hptLastLoadedKey HPT{lastLoadedKey} = lastLoadedKey
 
--- | romes:todo: comment.
+-- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present in all
+-- modules from this unit's HPT.
+--
+-- $O(n)$ in the number of modules.
 hptCompleteSigs :: HomePackageTable -> IO CompleteMatches
 hptCompleteSigs = undefined -- hptAllThings (md_complete_matches . hm_details)
 
---hptAllThings :: (HomeModInfo -> [a]) -> HscEnv -> [a]
---hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . snd)
---                                (hugElts (hsc_HUG hsc_env))
-
----- | Find all the instance declarations (of classes and families) from
----- the Home Package Table filtered by the provided predicate function.
----- Used in @tcRnImports@, to select the instances that are in the
----- transitive closure of imports from the currently compiled module.
+-- | Find all the instance declarations (of classes and families) from
+-- the Home Package Table filtered by the provided predicate function.
+-- Used in @tcRnImports@, to select the instances that are in the
+-- transitive closure of imports from the currently compiled module.
+-- ROMES:TODO: wait what?
+--
+-- $O(n)$ in the number of modules.
 hptAllInstances :: HomePackageTable -> IO (InstEnv, [FamInst])
-hptAllInstances = undefined
---  = let (insts, famInsts) = unzip $ flip hptAllThings hsc_env $ \mod_info -> do
---                let details = hm_details mod_info
---                return (md_insts details, md_fam_insts details)
---    in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
+hptAllInstances hpt = do
+  hits <- flip concatHpt hpt $ \mod_info -> do
+     let details = hm_details mod_info
+     return (md_insts details, md_fam_insts details)
+  let (insts, famInsts) = unzip hits 
+  return (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
 
+-- | Find all the family instance declarations from the HPT
+--
+-- $O(n)$ in the number of modules.
 hptAllFamInstances :: HomePackageTable -> IO (ModuleEnv FamInstEnv)
-hptAllFamInstances = undefined
-   -- mkModuleEnv [ (hmiModule hmi, hmiFamInstEnv hmi)
-   --                             | hpt <- unitEnv_hpts hug
-   --                             , hmi <- eltsHpt hpt ]
-
---              ; hmiModule     = mi_module . hm_iface
---              ; hmiFamInstEnv = extendFamInstEnvList emptyFamInstEnv
---                                . md_fam_insts . hm_details
+hptAllFamInstances hpt = mkModuleEnv <$>
+  concatHpt (\hmi -> [(hmiModule hmi, hmiFamInstEnv hmi)]) hpt
+  where
+    hmiModule     = mi_module . hm_iface
+    hmiFamInstEnv = extendFamInstEnvList emptyFamInstEnv
+                      . md_fam_insts . hm_details
 
 ----------------------------------------------------------------------------------
 ---- * Queries on Transitive Closure
@@ -322,6 +351,13 @@ hptCollectModules HPT{table} = do
 -- * Utilities
 --------------------------------------------------------------------------------
 
+-- | Pretty print a 'HomePackageTable'.
+--
+-- Make sure you really do need to print the whole HPT before infusing too much
+-- code with IO.
+--
+-- For instance, in the HUG, it suffices to print the unit-keys present in the
+-- unit map in failed lookups.
 pprHPT :: HomePackageTable -> IO SDoc
 -- A bit arbitrary for now
 pprHPT HPT{table=hptr} = do
@@ -332,29 +368,20 @@ pprHPT HPT{table=hptr} = do
            | hm <- hms ]
 
 ----------------------------------------------------------------------------------
--- ROMES:TODO: FROM HERE!!!
+-- THE TYPE OF FOOTGUNS WE DON'T WANT TO EXPOSE
 ----------------------------------------------------------------------------------
 
--- | Constructs an empty HomePackageTable
--- emptyHomePackageTable :: HomePackageTable
--- emptyHomePackageTable  = emptyUDFM
-
-lookupHpt :: HomePackageTable -> ModuleName -> IO (Maybe HomeModInfo)
-lookupHpt HPT{table=hpt} mn = (`lookupUDFM` mn) <$!> readIORef hpt
-
--- LOOKS LIKE A VERY LONG FOOT GUN...
 -- eltsHpt :: HomePackageTable -> [HomeModInfo]
--- eltsHpt = eltsUDFM
-
--- | Like @concatMap f . 'eltsHpt'@, but filters out all 'HomeModInfo' for which
--- @f@ returns the empty list before doing the sort inherent to 'eltsUDFM'.
--- concatHpt :: (HomeModInfo -> [a]) -> HomePackageTable -> [a]
--- concatHpt f = concat . eltsUDFM . mapMaybeUDFM g
---   where
---     g hmi = case f hmi of { [] -> Nothing; as -> Just as }
-
 -- filterHpt :: (HomeModInfo -> Bool) -> HomePackageTable -> HomePackageTable
--- filterHpt = filterUDFM
+-- mapHpt :: (HomeModInfo -> HomeModInfo) -> HomePackageTable -> HomePackageTable
+-- delFromHpt :: HomePackageTable -> ModuleName -> HomePackageTable
+-- listToHpt :: [(ModuleName, HomeModInfo)] -> HomePackageTable
+-- listHMIToHpt :: [HomeModInfo] -> HomePackageTable
+
+----------------------------------------------------------------------------------
+-- Would be fine, but may lead to bad utilization
+-- (e.g. `lastLoadedKey` superseded bad usages)
+----------------------------------------------------------------------------------
 
 -- allHpt :: (HomeModInfo -> Bool) -> HomePackageTable -> Bool
 -- allHpt = allUDFM
@@ -362,33 +389,18 @@ lookupHpt HPT{table=hpt} mn = (`lookupUDFM` mn) <$!> readIORef hpt
 -- anyHpt :: (HomeModInfo -> Bool) -> HomePackageTable -> Bool
 -- anyHpt = anyUDFM
 
--- mapHpt :: (HomeModInfo -> HomeModInfo) -> HomePackageTable -> HomePackageTable
--- mapHpt = mapUDFM
+----------------------------------------------------------------------------------
+-- Would be ok to expose this function very /careful/ with the argument function
+----------------------------------------------------------------------------------
 
--- delFromHpt :: HomePackageTable -> ModuleName -> HomePackageTable
--- delFromHpt = delFromUDFM
-
-addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
-addToHpt HPT{table=hptr, hasHoles} mn hmi = do
-  atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
-  return
-    HPT{ table = hptr
-       , hasHoles = hasHoles && isHoleModule (mi_semantic_module (hm_iface hmi))
-       , lastLoadedKey = Just $! getUnique mn
-       }
-
--- addListToHpt
---   :: HomePackageTable -> [(ModuleName, HomeModInfo)] -> HomePackageTable
--- addListToHpt = addListToUDFM
-
--- listToHpt :: [(ModuleName, HomeModInfo)] -> HomePackageTable
--- listToHpt = listToUDFM
-
--- listHMIToHpt :: [HomeModInfo] -> HomePackageTable
--- listHMIToHpt hmis =
---   listToHpt [(moduleName (mi_module (hm_iface hmi)), hmi) | hmi <- sorted_hmis]
---   where
---     -- Sort to put Non-boot things last, so they overwrite the boot interfaces
---     -- in the HPT, other than that, the order doesn't matter
---     sorted_hmis = sortOn (Down . mi_boot . hm_iface) hmis
-
+-- | Like @concatMap f . 'eltsHpt'@, but filters out all 'HomeModInfo' for which
+-- @f@ returns the empty list before doing the sort inherent to 'eltsUDFM'.
+--
+-- If this function is ever exposed from the HPT module, make sure the
+-- argument function doesn't introduce leaks.
+concatHpt :: (HomeModInfo -> [a]) -> HomePackageTable -> IO [a]
+concatHpt f HPT{table} = do
+  hpt <- readIORef table
+  return $ concat . eltsUDFM . mapMaybeUDFM g $ hpt
+  where
+    g hmi = case f hmi of { [] -> Nothing; as -> Just as }
