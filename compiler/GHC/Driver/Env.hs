@@ -53,7 +53,7 @@ import qualified GHC.Unit.Home.Graph as HUG
 import GHC.Unit.Env as UnitEnv
 import GHC.Unit.External
 
-import GHC.Types.Annotations ( Annotation, AnnEnv, mkAnnEnv, plusAnnEnv, emptyAnnEnv )
+import GHC.Types.Annotations ( AnnEnv, mkAnnEnv, plusAnnEnv, emptyAnnEnv )
 import GHC.Types.Error ( emptyMessages, Messages )
 import GHC.Types.Name
 import GHC.Types.Name.Env

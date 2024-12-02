@@ -105,10 +105,8 @@ import GHC.Types.SourceError
 import GHC.Unit
 import GHC.Unit.Env
 import GHC.Unit.Finder
---import GHC.Unit.State
 import GHC.Unit.Module.ModSummary
 import GHC.Unit.Module.ModIface
-import GHC.Unit.Module.Deps
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Home.PackageTable
 

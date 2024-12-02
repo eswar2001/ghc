@@ -129,7 +129,6 @@ import Data.List (sortOn, unfoldr)
 import Data.Bifunctor (first)
 import System.Directory
 import System.FilePath
-import System.IO        ( fixIO )
 
 import GHC.Conc ( getNumProcessors, getNumCapabilities, setNumCapabilities )
 import Control.Monad.IO.Class
@@ -145,11 +144,8 @@ import Control.Monad.Trans.Maybe
 import GHC.Runtime.Loader
 import GHC.Rename.Names
 import GHC.Utils.Constants
-import GHC.Types.Unique.DFM (udfmRestrictKeysSet)
-import GHC.Types.Unique
 import GHC.Iface.Errors.Types
 
-import qualified GHC.Data.Word64Set as W
 import GHC.Data.Graph.Directed.Reachability
 import qualified GHC.Unit.Home.Graph as HUG
 import GHC.Unit.Home.PackageTable

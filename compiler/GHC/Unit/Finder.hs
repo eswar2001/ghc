@@ -45,7 +45,7 @@ import GHC.Unit.Env
 import GHC.Unit.Types
 import GHC.Unit.Module
 import GHC.Unit.Home
-import GHC.Unit.Home.Graph (HomeUnitGraph, HomeUnitEnv, UnitEnvGraph)
+import GHC.Unit.Home.Graph (UnitEnvGraph)
 import qualified GHC.Unit.Home.Graph as HUG
 import GHC.Unit.State
 import GHC.Unit.Finder.Types

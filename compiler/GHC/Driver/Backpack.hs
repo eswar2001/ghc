@@ -51,7 +51,6 @@ import GHC.Types.SrcLoc
 import GHC.Types.SourceError
 import GHC.Types.SourceFile
 import GHC.Types.Unique.FM
-import GHC.Types.Unique.DFM
 import GHC.Types.Unique.DSet
 
 import GHC.Utils.Outputable
@@ -67,7 +66,6 @@ import GHC.Unit.External
 import GHC.Unit.Finder
 import GHC.Unit.Module.Graph
 import GHC.Unit.Module.ModSummary
-import GHC.Unit.Home.ModInfo
 
 import GHC.Linker.Types
 
@@ -350,8 +348,8 @@ buildUnit session cid insts lunit = do
                       -- seems irrelevant because boots or sigs shouldn't have
                       -- linkables in the first place?
                       -- map (expectJust "bkp link" . homeModInfoObject)
-                      -- . filter ((==HsSrcFile) . mi_hsc_src . hm_iface)
-                      -- $ home_mod_infos
+                      -- . filter ((==HsSrcFile) . mi_hsc_src . hm_iface) $
+                      -- home_mod_infos
             obj_files = concatMap linkableFiles linkables
             state     = hsc_units hsc_env
 
