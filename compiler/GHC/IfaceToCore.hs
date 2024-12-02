@@ -80,7 +80,6 @@ import GHC.Core.DataCon
 import GHC.Core.Opt.OccurAnal ( occurAnalyseExpr )
 import GHC.Core.Ppr
 
-import GHC.Unit.Env
 import GHC.Unit.External
 import GHC.Unit.Module
 import GHC.Unit.Module.ModDetails

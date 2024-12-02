@@ -121,15 +121,10 @@ import qualified GHC.Unit.Home.Graph as HUG
 import GHC.Platform
 import GHC.Settings
 import GHC.Data.Maybe
-import Data.Map.Strict (Map)
-import qualified Data.Map.Strict as Map
 import GHC.Utils.Misc (HasDebugCallStack)
 import GHC.Driver.DynFlags
 import GHC.Utils.Outputable
 import GHC.Utils.Panic
-import GHC.Unit.Module.ModIface
-import GHC.Unit.Module
-import qualified Data.Set as Set
 
 import GHC.Core.Rules
 import GHC.Types.Annotations
@@ -414,7 +409,7 @@ transitiveHomeDeps uid e =
 -- Asserts to enforce invariants for the UnitEnv
 -- ---------------------------------------------
 
--- ROMES:TODO: Shouldn't this be a proper assertion only used in debug mode?
+-- FIXME: Shouldn't this be a proper assertion only used in debug mode?
 assertUnitEnvInvariant :: HasDebugCallStack => UnitEnv -> UnitEnv
 assertUnitEnvInvariant u =
   case HUG.lookupHugUnit (ue_current_unit u) (ue_home_unit_graph u) of
@@ -426,10 +421,10 @@ assertUnitEnvInvariant u =
 -- Pretty output functions
 -- -----------------------------------------------------------------------------
 
-pprUnitEnvGraph :: UnitEnv -> IO SDoc
-pprUnitEnvGraph env = do
-  hugDoc <- HUG.pprHomeUnitGraph $ ue_home_unit_graph env
-  return $ text "pprInternalUnitMap" $$ nest 2 hugDoc
+-- pprUnitEnvGraph :: UnitEnv -> IO SDoc
+-- pprUnitEnvGraph env = do
+--   hugDoc <- HUG.pprHomeUnitGraph $ ue_home_unit_graph env
+--   return $ text "pprInternalUnitMap" $$ nest 2 hugDoc
 
 {-
 Note [Multiple Home Units]

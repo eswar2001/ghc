@@ -33,8 +33,6 @@ where
 
 import GHC.Prelude
 
-import GHC.Builtin.Names ( gHC_PRIM )
-
 import GHC.Driver.DynFlags
 import GHC.Driver.Errors ( printOrThrowDiagnostics )
 import GHC.Driver.Errors.Types ( GhcMessage )
@@ -51,17 +49,11 @@ import GHC.Unit.Module.ModIface
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Home.PackageTable
-import GHC.Unit.Home.Graph (HomeUnitGraph, HomeUnitEnv)
 import qualified GHC.Unit.Home.Graph as HUG
 import GHC.Unit.Env as UnitEnv
 import GHC.Unit.External
 
-import GHC.Core         ( CoreRule )
-import GHC.Core.FamInstEnv
-import GHC.Core.InstEnv
-
 import GHC.Types.Annotations ( Annotation, AnnEnv, mkAnnEnv, plusAnnEnv, emptyAnnEnv )
-import GHC.Types.CompleteMatch
 import GHC.Types.Error ( emptyMessages, Messages )
 import GHC.Types.Name
 import GHC.Types.Name.Env
@@ -78,7 +70,6 @@ import GHC.Utils.Logger
 
 import Data.IORef
 import qualified Data.Set as Set
-import GHC.Unit.Module.Graph
 
 runHsc :: HscEnv -> Hsc a -> IO a
 runHsc hsc_env hsc = do

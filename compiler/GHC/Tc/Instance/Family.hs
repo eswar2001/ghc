@@ -34,9 +34,7 @@ import GHC.Tc.Utils.TcType
 import GHC.Unit.External
 import GHC.Unit.Module
 import GHC.Unit.Module.ModIface
-import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.Deps
-import GHC.Unit.Home.ModInfo
 
 import GHC.Types.SrcLoc as SrcLoc
 import GHC.Types.Name.Reader
