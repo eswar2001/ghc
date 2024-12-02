@@ -16,6 +16,29 @@
 -- import GHC.Unit.Env (UnitEnv, HomeUnitGraph, HomeUnitEnv)
 -- import qualified GHC.Unit.Env as UnitEnv
 -- @
+--
+-- Here is an overview of how the UnitEnv, ModuleGraph, HUG, HPT, and EPS interact:
+--
+-- @
+-- ┌────────────────┐┌────────────────────┐┌───────────┐
+-- │HomePackageTable││ExternalPackageState││ModuleGraph│
+-- └┬───────────────┘└┬───────────────────┘└┬──────────┘
+-- ┌▽────────────┐    │                     │           
+-- │HomeUnitGraph│    │                     │           
+-- └┬────────────┘    │                     │           
+-- ┌▽─────────────────▽┐                    │           
+-- │UnitEnv            │                    │           
+-- └┬──────────────────┘                    │           
+-- ┌▽───────────────────────────────────────▽┐          
+-- │HscEnv                                   │          
+-- └─────────────────────────────────────────┘          
+-- @
+--
+-- The 'UnitEnv' references both the 'HomeUnitGraph' (with all the home unit
+-- modules) and the 'ExternalPackageState' (information about all
+-- non-home/external units). The 'HscEnv' has references this 'UnitEnv' and the
+-- 'ModuleGraph' (which describes the relationship between the modules being
+-- compiled). The 'HomeUnitGraph' has one 'HomePackageTable' for every unit.
 module GHC.Unit.Env
     ( UnitEnv (..)
     , initUnitEnv
@@ -101,6 +124,7 @@ module GHC.Unit.Env
     -- units.
     , hugCompleteSigs
     , hugAllInstances
+    , hugAllAnns
     , hugAnnsBelow
     , hugRulesBelow
     , hugInstancesBelow
@@ -113,6 +137,7 @@ import GHC.Unit.External
 import GHC.Unit.State
 import GHC.Unit.Home
 import GHC.Unit.Types
+import GHC.Unit.Module.Graph
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Home.PackageTable
 import GHC.Unit.Home.Graph (HomeUnitGraph, HomeUnitEnv)
@@ -139,16 +164,16 @@ import GHC.Core.FamInstEnv
 -- | Get annotations from all modules "below" this one (in the dependency
 -- sense) within the home units. If the module is @Nothing@, returns /all/
 -- annotations in the home units.
-hugAnnsBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
+hugAnnsBelow :: UnitEnv -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
 hugAnnsBelow = HUG.annsBelow . ue_home_unit_graph
 
 ---- | Get rules from modules "below" this one (in the dependency sense) within
 --the home units.
-hugRulesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
+hugRulesBelow :: UnitEnv -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
 hugRulesBelow = HUG.rulesBelow . ue_home_unit_graph
 
 -- | Find instances visible from the given set of imports
-hugInstancesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
+hugInstancesBelow :: UnitEnv -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
 hugInstancesBelow = HUG.instancesBelow . ue_home_unit_graph
 
 -- | Find all the instance declarations (of classes and families) from
@@ -157,6 +182,10 @@ hugInstancesBelow = HUG.instancesBelow . ue_home_unit_graph
 -- transitive closure of imports from the currently compiled module.
 hugAllInstances :: UnitEnv -> IO (InstEnv, [FamInst])
 hugAllInstances = HUG.allInstances . ue_home_unit_graph
+
+-- | Find all the annotations in all home units
+hugAllAnns :: UnitEnv -> IO AnnEnv
+hugAllAnns = HUG.allAnns . ue_home_unit_graph
 
 -- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
 -- all home units.

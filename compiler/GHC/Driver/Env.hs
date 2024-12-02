@@ -53,7 +53,7 @@ import qualified GHC.Unit.Home.Graph as HUG
 import GHC.Unit.Env as UnitEnv
 import GHC.Unit.External
 
-import GHC.Types.Annotations ( AnnEnv, mkAnnEnv, plusAnnEnv, emptyAnnEnv )
+import GHC.Types.Annotations ( AnnEnv, mkAnnEnv, plusAnnEnv )
 import GHC.Types.Error ( emptyMessages, Messages )
 import GHC.Types.Name
 import GHC.Types.Name.Env
@@ -209,8 +209,9 @@ prepareAnnotations hsc_env mb_guts = do
         -- otherwise load annotations from all home package table
         -- entries regardless of dependency ordering.
         get_mod mg = (moduleUnitId (mg_module mg), GWIB (moduleName (mg_module mg)) NotBoot)
-    home_pkg_anns  <- fromMaybe (pure emptyAnnEnv) $
-                      uncurry (hugAnnsBelow (hsc_unit_env hsc_env)) . get_mod <$> mb_guts
+    home_pkg_anns  <- fromMaybe (hugAllAnns (hsc_unit_env hsc_env))
+                      $ uncurry (hugAnnsBelow (hsc_unit_env hsc_env) (hsc_mod_graph hsc_env))
+                      . get_mod <$> mb_guts
     let
         other_pkg_anns = eps_ann_env eps
         ann_env        = foldl1' plusAnnEnv $ catMaybes [mb_this_module_anns,

@@ -54,6 +54,7 @@ module GHC.Unit.Home.PackageTable
   , hptCompleteSigs
   , hptAllInstances
   , hptAllFamInstances
+  , hptAllAnnotations
 
     -- ** Transitive closure queries
     --
@@ -64,7 +65,7 @@ module GHC.Unit.Home.PackageTable
   , hptAnnsBelow
   , hptInstancesBelow
 
-    -- * Traversal-based queries
+    -- ** More Traversal-based queries
   , hptCollectDependencies
   , hptCollectObjects
   , hptCollectModules
@@ -91,9 +92,11 @@ import GHC.Types.Unique.DFM
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Module
 import GHC.Unit.Module.Deps
+import GHC.Unit.Module.Graph
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModIface
 import GHC.Utils.Outputable
+import GHC.Builtin.Names (gHC_PRIM)
 
 -- | Helps us find information about modules in the home package
 data HomePackageTable = HPT {
@@ -236,82 +239,105 @@ hptAllFamInstances = fmap mkModuleEnv . concatHpt (\hmi -> [(hmiModule hmi, hmiF
     hmiFamInstEnv = extendFamInstEnvList emptyFamInstEnv
                       . md_fam_insts . hm_details
 
-----------------------------------------------------------------------------------
----- * Queries on Transitive Closure
-----------------------------------------------------------------------------------
+-- | All annotations from the HPT
+--
+-- $O(n)$ in the number of modules.
+hptAllAnnotations :: HomePackageTable -> IO AnnEnv
+hptAllAnnotations = fmap mkAnnEnv . concatHpt (md_anns . hm_details)
 
-hptRulesBelow :: HomePackageTable -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
-hptRulesBelow = undefined
+--------------------------------------------------------------------------------
+-- * Queries on Transitive Closure
+--------------------------------------------------------------------------------
+-- ROMES:TODO: Something else I want to do here is to receive a ModuleGraph and
+-- then use the fast reachability queries to determine whether something is
+-- reachable or not. That means we can very efficiently filter out things which
+-- are not part of the transitive closure...
+--
+-- So, e.g. it could probably be done faster by filtering out a cached list of
+-- rules using a 'ReachabilityIndex' as the filter $O(1)$ fast queries.
 
-hptAnnsBelow :: HomePackageTable -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
-hptAnnsBelow = undefined
+-- ROMES:TODO: Do something about the
+--
+--    | isOneShot (ghcMode (hsc_dflags hsc_env)) = []
+--
+-- shortcut that we used when this was a function on HscEnv...
 
-hptInstancesBelow :: HomePackageTable -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
-hptInstancesBelow = undefined
+-- | Find all rules in modules that are in the transitive closure of the given
+-- module.
+--
+-- $O(n)$ in the number of dependencies?
+hptRulesBelow :: HomePackageTable -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
+hptRulesBelow hpt mg uid mn = foldr (flip extendRuleBaseList) emptyRuleBase <$>
+  hptSomeThingsBelowUs (md_rules . hm_details) False hpt mg uid mn
 
----- | Get rules from modules "below" this one (in the dependency sense)
---hptRules :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> [CoreRule]
---hptRules = hptSomeThingsBelowUs (md_rules . hm_details) False
+-- | Get annotations from modules "below" this one (in the dependency sense)
+--
+-- $O(n)$ in the number of dependencies?
+hptAnnsBelow :: HomePackageTable -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
+hptAnnsBelow hpt mg uid mn = foldr (flip extendAnnEnvList) emptyAnnEnv <$>
+  hptSomeThingsBelowUs (md_anns . hm_details) False hpt mg uid mn
 
----- | Get annotations from modules "below" this one (in the dependency sense)
---hptAnns :: HscEnv -> Maybe (UnitId, ModuleNameWithIsBoot) -> [Annotation]
---hptAnns hsc_env (Just (uid, mn)) = hptSomeThingsBelowUs (md_anns . hm_details) False hsc_env uid mn
---hptAnns hsc_env Nothing = hptAllThings (md_anns . hm_details) hsc_env
+hptInstancesBelow :: HomePackageTable -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
+hptInstancesBelow hpt mg uid mnwib = do
+-- ouch... improve
+ let mn = gwib_mod mnwib
+ (insts, famInsts) <-
+     unzip . concat <$>
+       hptSomeThingsBelowUs (\mod_info ->
+                                  let details = hm_details mod_info
+                                  -- Don't include instances for the current module
+                                  in if moduleName (mi_module (hm_iface mod_info)) == mn
+                                       then []
+                                       else [(md_insts details, md_fam_insts details)])
+                          True -- Include -hi-boot
+                          hpt
+                          mg
+                          uid
+                          mnwib
+ return (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
 
----- | Find instances visible from the given set of imports
---hptInstancesBelow :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> (InstEnv, [FamInst])
---hptInstancesBelow hsc_env uid mnwib =
---  let
---    mn = gwib_mod mnwib
---    (insts, famInsts) =
---        unzip $ hptSomeThingsBelowUs (\mod_info ->
---                                     let details = hm_details mod_info
---                                     -- Don't include instances for the current module
---                                     in if moduleName (mi_module (hm_iface mod_info)) == mn
---                                          then []
---                                          else [(md_insts details, md_fam_insts details)])
---                             True -- Include -hi-boot
---                             hsc_env
---                             uid
---                             mnwib
---  in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
+-- | Get things from modules in the transitive closure of the given module.
+--
+-- Note: Don't expose this function. We can improve the interface further --
+-- let's keep the queries on the HPT contained in this module so we can optimise
+-- internally without breaking the API to the rest of GHC. This is a footgun if
+-- exposed!
+--
+-- NOTE: We should be able to import this considerably with the reachability
+-- index and caching?...
+--
+-- For example, easiest to go through all modules and filter out the ones in the
+-- hpt via the module graph.........
+--
+-- TODO: This include_hi_boot business is also pretty weird. Do we need it at all?
+hptSomeThingsBelowUs :: (HomeModInfo -> [a]) -> Bool -> HomePackageTable -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO [[a]]
+hptSomeThingsBelowUs extract include_hi_boot hpt mg uid mn
+  = sequence
+    [ things
+      -- "Finding each non-hi-boot module below me" maybe could be cached (well,
+      -- the inverse) in the module graph to avoid filtering the boots out of
+      -- the transitive closure out every time this is called
+    | (ModNodeKeyWithUid (GWIB { gwib_mod = mod, gwib_isBoot = is_boot }) mod_uid)
+          <- Set.toList (moduleGraphModulesBelow mg uid mn)
+    , include_hi_boot || (is_boot == NotBoot)
 
----- | Get things from modules "below" this one (in the dependency sense)
----- C.f Inst.hptInstances
---hptSomeThingsBelowUs :: (HomeModInfo -> [a]) -> Bool -> HscEnv -> UnitId -> ModuleNameWithIsBoot -> [a]
---hptSomeThingsBelowUs extract include_hi_boot hsc_env uid mn
---  | isOneShot (ghcMode (hsc_dflags hsc_env)) = []
+        -- unsavoury: when compiling the base package with --make, we
+        -- sometimes try to look up RULES etc for GHC.Prim. GHC.Prim won't
+        -- be in the HPT, because we never compile it; it's in the EPT
+        -- instead. ToDo: clean up, and remove this slightly bogus filter:
+    , mod /= moduleName gHC_PRIM
+    , not (mod == gwib_mod mn && uid == mod_uid)
 
---  | otherwise
---  = let hug = hsc_HUG hsc_env
---        mg  = hsc_mod_graph hsc_env
---    in
---    [ thing
---      -- "Finding each non-hi-boot module below me" maybe could be cached in the module
---      -- graph to avoid filtering the boots out of the transitive closure out
---      -- every time this is called
---    | (ModNodeKeyWithUid (GWIB { gwib_mod = mod, gwib_isBoot = is_boot }) mod_uid)
---          <- Set.toList (moduleGraphModulesBelow mg uid mn)
---    , include_hi_boot || (is_boot == NotBoot)
-
---        -- unsavoury: when compiling the base package with --make, we
---        -- sometimes try to look up RULES etc for GHC.Prim. GHC.Prim won't
---        -- be in the HPT, because we never compile it; it's in the EPT
---        -- instead. ToDo: clean up, and remove this slightly bogus filter:
---    , mod /= moduleName gHC_PRIM
---    , not (mod == gwib_mod mn && uid == mod_uid)
-
---        -- Look it up in the HPT
---    , let things = case lookupHug hug mod_uid mod of
---                    Just info -> extract info
---                    Nothing -> pprTrace "WARNING in hptSomeThingsBelowUs" msg mempty
---          msg = vcat [text "missing module" <+> ppr mod,
---                     text "When starting from"  <+> ppr mn,
---                     text "below:" <+> ppr (moduleGraphModulesBelow mg uid mn),
---                      text "Probable cause: out-of-date interface files"]
---                        -- This really shouldn't happen, but see #962
---    , thing <- things
---    ]
+        -- Look it up in the HPT
+    , let things = lookupHpt hpt mod >>= \case
+                    Just info -> return $ extract info
+                    Nothing -> pprTrace "WARNING in hptSomeThingsBelowUs" msg mempty
+          msg = vcat [text "missing module" <+> ppr mod,
+                     text "When starting from"  <+> ppr mn,
+                     text "below:" <+> ppr (moduleGraphModulesBelow mg uid mn),
+                      text "Probable cause: out-of-date interface files"]
+                        -- This really shouldn't happen, but see #962
+    ]
 
 --------------------------------------------------------------------------------
 -- * Traversal-based queries

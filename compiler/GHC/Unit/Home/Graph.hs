@@ -40,6 +40,7 @@ module GHC.Unit.Home.Graph
   -- * Very important queries
   , allInstances
   , allFamInstances
+  , allAnns
   , allCompleteSigs
   , rulesBelow
   , annsBelow
@@ -64,6 +65,7 @@ import GHC.Unit.Home
 import GHC.Unit.Home.ModInfo
 import GHC.Unit.Home.PackageTable
 import GHC.Unit.Module
+import GHC.Unit.Module.Graph
 import GHC.Unit.Module.ModIface
 import GHC.Unit.State
 import GHC.Utils.Outputable
@@ -93,21 +95,21 @@ import GHC.Types.Name.Env
 -- | Get annotations from all modules "below" this one (in the dependency
 -- sense) within the home units. If the module is @Nothing@, returns /all/
 -- annotations in the home units.
-annsBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
-annsBelow hug uid mn = foldr go (pure emptyAnnEnv) hug where
-  go hue = liftA2 plusAnnEnv (hptAnnsBelow (homeUnitEnv_hpt hue) uid mn)
+annsBelow :: HomeUnitGraph -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
+annsBelow hug mg uid mn = foldr go (pure emptyAnnEnv) hug where
+  go hue = liftA2 plusAnnEnv (hptAnnsBelow (homeUnitEnv_hpt hue) mg uid mn)
 
 ---- | Get rules from modules "below" this one (in the dependency sense) within
 --the home units.
-rulesBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
-rulesBelow hug uid mn = foldr go (pure emptyRuleBase) hug where
-  go hue = liftA2 plusNameEnv (hptRulesBelow (homeUnitEnv_hpt hue) uid mn)
+rulesBelow :: HomeUnitGraph -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
+rulesBelow hug mg uid mn = foldr go (pure emptyRuleBase) hug where
+  go hue = liftA2 plusNameEnv (hptRulesBelow (homeUnitEnv_hpt hue) mg uid mn)
 
 -- | Find instances visible from the given set of imports
-instancesBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
-instancesBelow hug uid mn = foldr go (pure (emptyInstEnv, [])) hug where
+instancesBelow :: HomeUnitGraph -> ModuleGraph -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
+instancesBelow hug mg uid mn = foldr go (pure (emptyInstEnv, [])) hug where
   go hue = liftA2 (\(a,b) (a',b') -> (a `unionInstEnv` a', b ++ b'))
-                  (hptInstancesBelow (homeUnitEnv_hpt hue) uid mn)
+                  (hptInstancesBelow (homeUnitEnv_hpt hue) mg uid mn)
 
 -- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
 -- all home units.
@@ -131,6 +133,9 @@ allFamInstances :: HomeUnitGraph -> IO (ModuleEnv FamInstEnv)
 allFamInstances hug = foldr go (pure emptyModuleEnv) hug where
   go hue = liftA2 plusModuleEnv (hptAllFamInstances (homeUnitEnv_hpt hue))
 
+allAnns :: HomeUnitGraph -> IO AnnEnv
+allAnns hug = foldr go (pure emptyAnnEnv) hug where
+  go hue = liftA2 plusAnnEnv (hptAllAnnotations (homeUnitEnv_hpt hue))
 
 --------------------------------------------------------------------------------
 -- OK?
@@ -202,10 +207,8 @@ addHomeModInfoToHug hmi hug =
         unitEnv_insert hmi_unit hue{homeUnitEnv_hpt=hpt} hug
   where
     hmi_mod :: Module
-    hmi_mod = mi_module (hm_iface hmi)
-
+    hmi_mod  = mi_module (hm_iface hmi)
     hmi_unit = toUnitId (moduleUnit hmi_mod)
-    _hmi_mn   = moduleName hmi_mod
 
 -- | Rename a unit id in the 'HomeUnitGraph'
 --
