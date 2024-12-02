@@ -223,7 +223,7 @@ hptAllInstances hpt = do
   hits <- flip concatHpt hpt $ \mod_info -> do
      let details = hm_details mod_info
      return (md_insts details, md_fam_insts details)
-  let (insts, famInsts) = unzip hits 
+  let (insts, famInsts) = unzip hits
   return (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
 
 -- | Find all the family instance declarations from the HPT
