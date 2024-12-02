@@ -209,7 +209,7 @@ hptLastLoadedKey HPT{lastLoadedKey} = lastLoadedKey
 --
 -- $O(n)$ in the number of modules.
 hptCompleteSigs :: HomePackageTable -> IO CompleteMatches
-hptCompleteSigs = undefined -- hptAllThings (md_complete_matches . hm_details)
+hptCompleteSigs = concatHpt (md_complete_matches . hm_details)
 
 -- | Find all the instance declarations (of classes and families) from
 -- the Home Package Table filtered by the provided predicate function.
@@ -230,8 +230,7 @@ hptAllInstances hpt = do
 --
 -- $O(n)$ in the number of modules.
 hptAllFamInstances :: HomePackageTable -> IO (ModuleEnv FamInstEnv)
-hptAllFamInstances hpt = mkModuleEnv <$>
-  concatHpt (\hmi -> [(hmiModule hmi, hmiFamInstEnv hmi)]) hpt
+hptAllFamInstances = fmap mkModuleEnv . concatHpt (\hmi -> [(hmiModule hmi, hmiFamInstEnv hmi)])
   where
     hmiModule     = mi_module . hm_iface
     hmiFamInstEnv = extendFamInstEnvList emptyFamInstEnv
