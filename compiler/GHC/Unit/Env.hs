@@ -34,7 +34,8 @@ module GHC.Unit.Env
     , ue_setActiveUnit
     , ue_currentUnit
     , ue_findHomeUnitEnv
-    -- , ue_updateHomeUnitEnv
+    , ue_unitHomeUnit_maybe
+    , ue_updateHomeUnitEnv
     -- , ue_unitHomeUnit
     -- , ue_unitFlags
     -- * HomeUnitEnv
@@ -83,6 +84,7 @@ module GHC.Unit.Env
 
     -- ** Queries on the current active home unit
     , homeUnitState
+    , homeUnitDbs
     , homeUnit
     , unitFlags
 
@@ -279,8 +281,8 @@ ue_findHomeUnitEnv uid e = case HUG.lookupHugUnit uid (ue_home_unit_graph e) of
 homeUnitState :: HasDebugCallStack => UnitEnv -> UnitState
 homeUnitState = HUG.homeUnitEnv_units . ue_currentHomeUnitEnv
 
--- ue_unit_dbs :: UnitEnv ->  Maybe [UnitDatabase UnitId]
--- ue_unit_dbs = homeUnitEnv_unit_dbs . ue_currentHomeUnitEnv
+homeUnitDbs :: UnitEnv ->  Maybe [UnitDatabase UnitId]
+homeUnitDbs = HUG.homeUnitEnv_unit_dbs . ue_currentHomeUnitEnv
 
 -- -------------------------------------------------------
 -- Query and modify Home Package Table in HomeUnitEnv
@@ -292,9 +294,9 @@ ue_hpt = HUG.homeUnitEnv_hpt . ue_currentHomeUnitEnv
 
 -- | Inserts a 'HomeModInfo' at the given 'ModuleName' on the
 -- 'HomePackageTable' of the /current unit/ being compiled.
-insertHpt :: HasDebugCallStack => ModuleName -> HomeModInfo -> UnitEnv -> IO UnitEnv
-insertHpt mn hmi e = do
-  !res <- HUG.insertHpt (ue_currentUnit e) mn hmi (ue_home_unit_graph e)
+insertHpt :: HasDebugCallStack => HomeModInfo -> UnitEnv -> IO UnitEnv
+insertHpt hmi e = do
+  !res <- HUG.addHomeModInfoToHug hmi (ue_home_unit_graph e)
   return e{ue_home_unit_graph = res}
 
 ue_updateHUG :: HasDebugCallStack => (HomeUnitGraph -> HomeUnitGraph) -> UnitEnv -> UnitEnv
@@ -362,10 +364,10 @@ ue_currentUnit :: UnitEnv -> UnitId
 ue_currentUnit = ue_current_unit
 
 
--- ue_updateHomeUnitEnv :: (HomeUnitEnv -> HomeUnitEnv) -> UnitId -> UnitEnv -> UnitEnv
--- ue_updateHomeUnitEnv f uid e = e
---   { ue_home_unit_graph = unitEnv_adjust f uid $ ue_home_unit_graph e
---   }
+ue_updateHomeUnitEnv :: (HomeUnitEnv -> HomeUnitEnv) -> UnitId -> UnitEnv -> UnitEnv
+ue_updateHomeUnitEnv f uid e = e
+  { ue_home_unit_graph = HUG.unitEnv_adjust f uid $ ue_home_unit_graph e
+  }
 
 -- | Rename a unit id in the internal unit env.
 --

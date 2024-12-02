@@ -92,6 +92,8 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Types.Error (mkUnknownDiagnostic)
+import qualified GHC.Unit.Home.Graph as HUG
+import GHC.Unit.Home.PackageTable
 
 -- | Entry point to compile a Backpack file.
 doBackpack :: [FilePath] -> Ghc ()
@@ -342,10 +344,14 @@ buildUnit session cid insts lunit = do
 
         -- Compile relevant only
         hsc_env <- getSession
-        let home_mod_infos = eltsUDFM (hsc_HPT hsc_env)
-            linkables = map (expectJust "bkp link" . homeModInfoObject)
-                      . filter ((==HsSrcFile) . mi_hsc_src . hm_iface)
-                      $ home_mod_infos
+        linkables <- liftIO $ hptCollectObjects (hsc_HPT hsc_env)
+        let
+                      -- ROMES:TODO: before we filtered by HsSrcFile, but that
+                      -- seems irrelevant because boots or sigs shouldn't have
+                      -- linkables in the first place?
+                      -- map (expectJust "bkp link" . homeModInfoObject)
+                      -- . filter ((==HsSrcFile) . mi_hsc_src . hm_iface)
+                      -- $ home_mod_infos
             obj_files = concatMap linkableFiles linkables
             state     = hsc_units hsc_env
 
@@ -429,7 +435,7 @@ addUnit u = do
     logger <- getLogger
     let dflags0 = hsc_dflags hsc_env
     let old_unit_env = hsc_unit_env hsc_env
-    newdbs <- case ue_unit_dbs old_unit_env of
+    newdbs <- case homeUnitDbs old_unit_env of
         Nothing  -> panic "addUnit: called too early"
         Just dbs ->
          let newdb = UnitDatabase
@@ -448,9 +454,9 @@ addUnit u = do
           , ue_current_unit = homeUnitId home_unit
 
           , ue_home_unit_graph =
-                unitEnv_singleton
+                HUG.unitEnv_singleton
                     (homeUnitId home_unit)
-                    (mkHomeUnitEnv unit_state (Just dbs) dflags (ue_hpt old_unit_env) (Just home_unit))
+                    (HUG.mkHomeUnitEnv unit_state (Just dbs) dflags (ue_hpt old_unit_env) (Just home_unit))
           , ue_eps       = ue_eps old_unit_env
           }
     setSession $ hscSetFlags dflags $ hsc_env { hsc_unit_env = unit_env }

@@ -125,9 +125,9 @@ hsc_HUG = ue_home_unit_graph . hsc_unit_env
 hsc_all_home_unit_ids :: HscEnv -> Set.Set UnitId
 hsc_all_home_unit_ids = HUG.allUnits . hsc_HUG
 
-hscInsertHPT :: ModuleName -> HomeModInfo -> HscEnv -> IO HscEnv
-hscInsertHPT mn hmi hsc_env = do
-  !res <- UnitEnv.insertHpt mn hmi (hsc_unit_env hsc_env)
+hscInsertHPT :: HomeModInfo -> HscEnv -> IO HscEnv
+hscInsertHPT hmi hsc_env = do
+  !res <- UnitEnv.insertHpt hmi (hsc_unit_env hsc_env)
   return $ hsc_env { hsc_unit_env = res }
 
 hscUpdateHUG :: (HomeUnitGraph -> HomeUnitGraph) -> HscEnv -> HscEnv
