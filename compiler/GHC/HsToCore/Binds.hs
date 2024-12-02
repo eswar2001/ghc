@@ -976,72 +976,78 @@ finishSpecPrag :: Name -> CoreExpr                    -- RHS to specialise
                -> DsM (Maybe (OrdList (Id,CoreExpr), CoreRule))
 finishSpecPrag poly_nm poly_rhs rule_bndrs poly_id rule_args
                                 spec_bndrs mk_spec_body spec_inl
-  = do { want_spec <-
-            case mb_useless of
-              Just useless ->
-                 do { diagnosticDs $ DsUselessSpecialisePragma poly_nm useless
-                    ; return $ uselessSpecialisePragmaKeepAnyway useless }
-              Nothing -> return True
-       ; if not want_spec
-         then return Nothing
-         else Just <$>
+  | Just reason <- mb_useless
+  = do { diagnosticDs $ DsUselessSpecialisePragma poly_nm reason
+       ; if uselessSpecialisePragmaKeepAnyway reason
+         then Just <$> finish_prag
+         else return Nothing }
+
+  | otherwise
+  = Just <$> finish_prag
+
+  where
     -- The RULE looks like
     --    RULE "USPEC" forall rule_bndrs. f rule_args = $sf spec_bndrs
     -- The specialised function looks like
     --    $sf spec_bndrs = mk_spec_body <f's original rhs>
     -- We also use mk_spec_body to specialise the methods in f's stable unfolding
     -- NB: spec_bindrs is a subset of rule_bndrs
-    do { this_mod <- getModule
-       ; uniq     <- newUnique
-       ; dflags   <- getDynFlags
-       ; let poly_name  = idName poly_id
-             spec_occ   = mkSpecOcc (getOccName poly_name)
-             spec_name  = mkInternalName uniq spec_occ (getSrcSpan poly_name)
+    finish_prag
+      = do { this_mod <- getModule
+           ; uniq     <- newUnique
+           ; dflags   <- getDynFlags
+           ; let poly_name  = idName poly_id
+                 spec_occ   = mkSpecOcc (getOccName poly_name)
+                 spec_name  = mkInternalName uniq spec_occ (getSrcSpan poly_name)
 
-             simpl_opts = initSimpleOpts dflags
-             fn_unf     = realIdUnfolding poly_id
-             spec_unf   = specUnfolding simpl_opts spec_bndrs mk_spec_body rule_args fn_unf
-             spec_id    = mkLocalId spec_name ManyTy spec_ty
-                            -- Specialised binding is toplevel, hence Many.
-                            `setInlinePragma` specFunInlinePrag poly_id id_inl spec_inl
-                            `setIdUnfolding`  spec_unf
+                 simpl_opts = initSimpleOpts dflags
+                 fn_unf     = realIdUnfolding poly_id
+                 spec_unf   = specUnfolding simpl_opts spec_bndrs mk_spec_body rule_args fn_unf
+                 spec_id    = mkLocalId spec_name ManyTy spec_ty
+                                -- Specialised binding is toplevel, hence Many.
+                                `setInlinePragma` specFunInlinePrag poly_id id_inl spec_inl
+                                `setIdUnfolding`  spec_unf
 
-             rule = mkSpecRule dflags this_mod False rule_act (text "USPEC")
-                               poly_id rule_bndrs rule_args
-                               (mkVarApps (Var spec_id) spec_bndrs)
+                 rule = mkSpecRule dflags this_mod False rule_act (text "USPEC")
+                                   poly_id rule_bndrs rule_args
+                                   (mkVarApps (Var spec_id) spec_bndrs)
 
-             rule_ty  = exprType (mkApps (Var poly_id) rule_args)
-             spec_ty  = mkLamTypes spec_bndrs rule_ty
-             spec_rhs = mkLams spec_bndrs (mk_spec_body poly_rhs)
+                 rule_ty  = exprType (mkApps (Var poly_id) rule_args)
+                 spec_ty  = mkLamTypes spec_bndrs rule_ty
+                 spec_rhs = mkLams spec_bndrs (mk_spec_body poly_rhs)
 
-       ; dsWarnOrphanRule rule
+           ; dsWarnOrphanRule rule
 
-       ; tracePm "dsSpec" (vcat
-            [ text "fun:" <+> ppr poly_id
-            , text "spec_bndrs:" <+>  ppr spec_bndrs
-            , text "args:" <+>  ppr rule_args ])
-       ; return (unitOL (spec_id, spec_rhs), rule)
-            -- NB: do *not* use makeCorePair on (spec_id,spec_rhs), because
-            --     makeCorePair overwrites the unfolding, which we have
-            --     just created using specUnfolding
-       } }
-  where
+           ; tracePm "dsSpec" (vcat
+                [ text "fun:" <+> ppr poly_id
+                , text "spec_bndrs:" <+>  ppr spec_bndrs
+                , text "args:" <+>  ppr rule_args ])
+           ; return (unitOL (spec_id, spec_rhs), rule) }
+                -- NB: do *not* use makeCorePair on (spec_id,spec_rhs), because
+                --     makeCorePair overwrites the unfolding, which we have
+                --     just created using specUnfolding
+
     -- Is this SPECIALISE pragma useless?
-    mb_useless =
-      if | isJust (isClassOpId_maybe poly_id)
-         -- There is no point in trying to specialise a class op
-         -- Moreover, classops don't (currently) have an inl_sat arity set
-         -- (it would be Just 0) and that in turn makes makeCorePair bleat
-         -> Just UselessSpecialiseForClassMethodSelector
-         | no_act_spec && isNeverActive rule_act
-         -- Function is NOINLINE, and the specialisation inherits that
-         -- See Note [Activation pragmas for SPECIALISE]
-         -> Just UselessSpecialiseForNoInlineFunction
-         | all is_nop_arg rule_args
-         -- The specialisation does nothing.
-         -> Just UselessSpecialiseNoSpecialisation
-         | otherwise
-         -> Nothing
+    mb_useless :: Maybe UselessSpecialisePragmaReason
+    mb_useless
+      | isJust (isClassOpId_maybe poly_id)
+      -- There is no point in trying to specialise a class op
+      -- Moreover, classops don't (currently) have an inl_sat arity set
+      -- (it would be Just 0) and that in turn makes makeCorePair bleat
+      = Just UselessSpecialiseForClassMethodSelector
+
+      | no_act_spec, isNeverActive rule_act
+      -- Function is NOINLINE, and the specialisation inherits that
+      -- See Note [Activation pragmas for SPECIALISE]
+      = Just UselessSpecialiseForNoInlineFunction
+
+      | all is_nop_arg rule_args, not (isInlinePragma spec_inl)
+      -- The specialisation does nothing.
+      -- But don't compliain if it is SPECIALISE INLINE (#4444)
+      = Just UselessSpecialiseNoSpecialisation
+
+      | otherwise
+      = Nothing
 
     -- See Note [Activation pragmas for SPECIALISE]
     -- no_act_spec is True if the user didn't write an explicit

@@ -218,11 +218,10 @@ data UselessSpecialisePragmaReason
 uselessSpecialisePragmaKeepAnyway :: UselessSpecialisePragmaReason -> Bool
 uselessSpecialisePragmaKeepAnyway = \case
   UselessSpecialiseForClassMethodSelector -> False
-  UselessSpecialiseForNoInlineFunction -> False
-  UselessSpecialiseNoSpecialisation -> True
+  UselessSpecialiseForNoInlineFunction    -> False
+  UselessSpecialiseNoSpecialisation       -> True
     -- See #25389/T25389 for why we might want to keep this specialisation
     -- around even if it seemingly does nothing.
-
 
 data NegLiteralExtEnabled
   = YesUsingNegLiterals
