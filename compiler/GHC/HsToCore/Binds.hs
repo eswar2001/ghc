@@ -812,6 +812,18 @@ We want to get
              in <f-rhs> @[a] @[Int] d2 d3 x 3
 
 Notice that
+* If the expression had a type signature, such as
+     SPECIALISE f :: Eq b => Int -> b -> b
+  then the desugared expression may have type abstractions and applications
+  "in the way", like this:
+     (/\b. (\d:Eq b). let d1 = $dfOrdInt in f @Int @b d1 d) @b (d2:Eq b)
+  We use the simple optimiser to simplify this to
+     let { d = d2; d1 = $dfOrdInt } in f @Int @b (d2:Eq b)
+  Do no inlining in this "simple optimiser" phase: use `simpleOptExprNoInline`.
+  E.g. we don't want to turn
+     let { d1=d; d2=d } in f d d    -->    f d d
+  because the latter is harder to match.
+
 * We want to quantify the RULE over the free vars of the /call/ inside all
   those dictionary bindings.
 
@@ -924,6 +936,8 @@ dsSpec poly_rhs (SpecPragE { spe_fn_nm  = poly_nm
 
        ; tracePm "dsSpec" (vcat [ text "poly_id" <+> ppr poly_id
                                 , text "bndrs"   <+> ppr bndrs
+                                , text "all_bndrs"   <+> ppr all_bndrs
+                                , text "const_bndrs"   <+> ppr const_bndrs
                                 , text "ds_call" <+> ppr ds_call
                                 , text "core_call" <+> ppr core_call
                                 , text "core_call fvs" <+> ppr (exprFreeVars core_call)
@@ -948,9 +962,11 @@ prepareSpecLHS poly_id evs the_call
     go qevs acc (Let bind e)
       | not (all isDictId bndrs)   -- A normal 'let' is too complicated
       = Nothing
+
       | all (transfer_to_spec_rhs qevs) $
-        rhssOfBind bind
+        rhssOfBind bind            -- One of the `const_binds`
       = go qevs (bind:acc) e
+
       | otherwise
       = go (qevs `extendVarSetList` bndrs) acc e
       where
@@ -964,8 +980,7 @@ prepareSpecLHS poly_id evs the_call
       = Nothing
 
     transfer_to_spec_rhs qevs rhs
-      = exprIsTrivial rhs
-        || isEmptyVarSet (exprSomeFreeVars is_quant_id rhs)
+      = isEmptyVarSet (exprSomeFreeVars is_quant_id rhs)
       where
         is_quant_id v = isId v && v `elemVarSet` qevs
       -- See Note [Desugaring SPECIALISE pragmas] wrinkle (DS1)

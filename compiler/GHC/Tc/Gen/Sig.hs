@@ -959,7 +959,9 @@ tcSpecPrag poly_id (SpecSigE nm bndrs spec_e inl)
                    solveWanteds wanted
 
        -- Quantifiy over the the constraints
-       ; qevs <- mk_quant_evs (approximateWC False wanted)
+       ; qevs <- mapM newEvVar $
+                 ctsPreds      $
+                 approximateWC False wanted
 
        ; emitResidualConstraints rhs_tclvl skol_info_anon ev_binds_var
                                  emptyVarSet tv_bndrs qevs
@@ -1460,55 +1462,41 @@ simplifyRule name tc_lvl lhs_wanted rhs_wanted
        ; lhs_wanted <- liftZonkM $ zonkWC lhs_wanted
 
        -- Note [The SimplifyRule Plan] step 3
-       ; let (quant_cts, residual_lhs_wanted) = getRuleQuantCts lhs_wanted
-       ; quant_evs <- mk_quant_evs quant_cts
+       ; (quant_evs, residual_lhs_wanted) <-getRuleQuantCts lhs_wanted
 
        ; traceTc "simplifyRule" $
          vcat [ text "LHS of rule" <+> doubleQuotes (ftext name)
               , text "lhs_wanted" <+> ppr lhs_wanted
               , text "rhs_wanted" <+> ppr rhs_wanted
-              , text "quant_cts" <+> ppr quant_cts
+              , text "quant_cts" <+> ppr quant_evs
               , text "residual_lhs_wanted" <+> ppr residual_lhs_wanted
               , text "dont_default" <+> ppr dont_default
               ]
 
        ; return (quant_evs, residual_lhs_wanted, dont_default) }
 
-mk_quant_evs :: Cts -> TcM [EvVar]
-mk_quant_evs cts
-  = mapM mk_one (bagToList cts)
-  where
-    mk_one ct
-     | CtWanted { ctev_dest = dest, ctev_pred = pred } <- ctEvidence ct
-     = case dest of
-         EvVarDest ev_id -> return ev_id
-         HoleDest hole   -> -- See Note [Quantifying over coercion holes]
-                            do { ev_id <- newEvVar pred
-                               ; fillCoercionHole hole (mkCoVarCo ev_id)
-                               ; return ev_id }
-    mk_one ct = pprPanic "mk_quant_ev" (ppr ct)
-
-getRuleQuantCts :: WantedConstraints -> (Cts, WantedConstraints)
+getRuleQuantCts :: WantedConstraints -> TcM ([EvVar], WantedConstraints)
 -- Extract all the constraints that we can quantify over,
 --   also returning the depleted WantedConstraints
+--
+-- Unlike simplifyInfer, we don't leave the WantedConstraints unchanged,
+--   and attempt to solve them from the quantified constraints.  Instead
+--   we /partition/ the WantedConstraints into ones to quantify and ones
+--   we can't quantify.  We could use approximateWC instead, and leave
+--   `wanted` unchanged; but then we'd have clone fresh binders and
+--   generate silly identity bindings.  Seems more direct to do this.
+--   Probably not a big eal wither way.
 --
 -- NB: we must look inside implications, because with
 --     -fdefer-type-errors we generate implications rather eagerly;
 --     see GHC.Tc.Utils.Unify.implicationNeeded. Not doing so caused #14732.
---
--- Unlike simplifyInfer, we don't leave the WantedConstraints unchanged,
---   and attempt to solve them from the quantified constraints.  That
---   nearly works, but fails for a constraint like (d :: Eq Int).
---   We /do/ want to quantify over it, but the short-cut solver
---   (see GHC.Tc.Solver.Dict Note [Shortcut solving]) ignores the quantified
---   and instead solves from the top level.
---
---   So we must partition the WantedConstraints ourselves
---   Not hard, but tiresome.
 
 getRuleQuantCts wc
-  = float_wc emptyVarSet wc
+  = do { quant_evs <- mapM mk_one (bagToList quant_cts)
+       ; return (quant_evs, residual_wc) }
   where
+    (quant_cts, residual_wc) = float_wc emptyVarSet wc
+
     float_wc :: TcTyCoVarSet -> WantedConstraints -> (Cts, WantedConstraints)
     float_wc skol_tvs (WC { wc_simple = simples, wc_impl = implics, wc_errors = errs })
       = ( simple_yes `andCts` implic_yes
@@ -1534,6 +1522,16 @@ getRuleQuantCts wc
              -> False        -- Note [RULE quantification over equalities]
            _ -> tyCoVarsOfCt ct `disjointVarSet` skol_tvs
 
+    mk_one :: Ct -> TcM EvVar
+    mk_one ct
+     | CtWanted { ctev_dest = dest, ctev_pred = pred } <- ctEvidence ct
+     = case dest of
+         EvVarDest ev_id -> return ev_id
+         HoleDest hole   -> -- See Note [Quantifying over coercion holes]
+                            do { ev_id <- newEvVar pred
+                               ; fillCoercionHole hole (mkCoVarCo ev_id)
+                               ; return ev_id }
+    mk_one ct = pprPanic "mk_quant_ev" (ppr ct)
 --    ok_eq t1 t2
 --       | t1 `tcEqType` t2 = False  -- Our solving step may have turned it into Refl
 --       | otherwise        = True
