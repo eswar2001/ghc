@@ -51,7 +51,9 @@ module GHC.Unit.Home.PackageTable
     -- * Queries about home modules
   , hptHasHoles
   , hptLastLoadedKey
-  -- , hpt
+  , hptCompleteSigs
+  , hptAllInstances
+  , hptAllFamInstances
 
     -- ** Transitive closure queries
     --
@@ -177,23 +179,34 @@ hptHasHoles HPT{hasHoles} = hasHoles
 hptLastLoadedKey :: HomePackageTable -> Maybe Unique
 hptLastLoadedKey HPT{lastLoadedKey} = lastLoadedKey
 
+-- | romes:todo: comment.
+hptCompleteSigs :: HomePackageTable -> IO CompleteMatches
+hptCompleteSigs = undefined -- hptAllThings (md_complete_matches . hm_details)
+
+--hptAllThings :: (HomeModInfo -> [a]) -> HscEnv -> [a]
+--hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . snd)
+--                                (hugElts (hsc_HUG hsc_env))
+
 ---- | Find all the instance declarations (of classes and families) from
 ---- the Home Package Table filtered by the provided predicate function.
 ---- Used in @tcRnImports@, to select the instances that are in the
 ---- transitive closure of imports from the currently compiled module.
---hptAllInstances :: HscEnv -> (InstEnv, [FamInst])
---hptAllInstances hsc_env
+hptAllInstances :: HomePackageTable -> IO (InstEnv, [FamInst])
+hptAllInstances = undefined
 --  = let (insts, famInsts) = unzip $ flip hptAllThings hsc_env $ \mod_info -> do
 --                let details = hm_details mod_info
 --                return (md_insts details, md_fam_insts details)
 --    in (foldl' unionInstEnv emptyInstEnv insts, concat famInsts)
 
---hptCompleteSigs :: HscEnv -> CompleteMatches
---hptCompleteSigs = hptAllThings (md_complete_matches . hm_details)
+hptAllFamInstances :: HomePackageTable -> IO (ModuleEnv FamInstEnv)
+hptAllFamInstances = undefined
+   -- mkModuleEnv [ (hmiModule hmi, hmiFamInstEnv hmi)
+   --                             | hpt <- unitEnv_hpts hug
+   --                             , hmi <- eltsHpt hpt ]
 
---hptAllThings :: (HomeModInfo -> [a]) -> HscEnv -> [a]
---hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . snd)
---                                (hugElts (hsc_HUG hsc_env))
+--              ; hmiModule     = mi_module . hm_iface
+--              ; hmiFamInstEnv = extendFamInstEnvList emptyFamInstEnv
+--                                . md_fam_insts . hm_details
 
 ----------------------------------------------------------------------------------
 ---- * Queries on Transitive Closure

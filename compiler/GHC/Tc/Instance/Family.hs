@@ -272,7 +272,7 @@ checkFamInstConsistency directlyImpMods
 
              }
 
-       ; hpt_fam_insts <- liftIO $ HUG.famInstances hug
+       ; hpt_fam_insts <- liftIO $ HUG.allFamInstances hug
 
 
        ; checkMany hpt_fam_insts modConsistent directlyImpMods

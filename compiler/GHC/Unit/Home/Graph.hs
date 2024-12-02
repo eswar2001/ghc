@@ -20,14 +20,14 @@
 -- @
 module GHC.Unit.Home.Graph
   ( HomeUnitGraph
-  , HomeUnitEnv(..) -- romes: validate if should expose internals of this
+  , HomeUnitEnv(..)
   , mkHomeUnitEnv
 
   -- * Operations
   , addHomeModInfoToHug
-  , updateUnitFlags
   , renameUnitId
   , allUnits
+  , updateUnitFlags
 
   -- ** Lookups
   , lookupHug
@@ -37,10 +37,10 @@ module GHC.Unit.Home.Graph
   -- ** Reachability
   , transitiveHomeDeps
 
-  -- * Very important
-  , famInstances
+  -- * Very important queries
   , allInstances
-  , completeSigs
+  , allFamInstances
+  , allCompleteSigs
   , rulesBelow
   , annsBelow
   , instancesBelow
@@ -72,7 +72,6 @@ import GHC.Utils.Panic
 import GHC.Core.FamInstEnv
 
 import Data.Map.Strict (Map)
-import Data.Maybe
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GHC.Data.Maybe
@@ -81,7 +80,7 @@ import GHC.Core.Rules
 import GHC.Types.Annotations
 import GHC.Types.CompleteMatch
 import GHC.Core.InstEnv
-import GHC.Core.FamInstEnv
+import GHC.Types.Name.Env
 
 --------------------------------------------------------------------------------
 -- TODO
@@ -91,46 +90,49 @@ import GHC.Core.FamInstEnv
 -- Then we'd have the HPT itself rehydrated, but the cached fields with
 -- bad references.
 
--- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
--- all home units.
-completeSigs :: HomeUnitGraph -> IO CompleteMatches
-completeSigs = undefined
-
 -- | Get annotations from all modules "below" this one (in the dependency
 -- sense) within the home units. If the module is @Nothing@, returns /all/
 -- annotations in the home units.
 annsBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
-annsBelow hug = undefined
-
---hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . snd)
---                                (hugElts (hsc_HUG hsc_env))
+annsBelow hug uid mn = foldr go (pure emptyAnnEnv) hug where
+  go hue = liftA2 plusAnnEnv (hptAnnsBelow (homeUnitEnv_hpt hue) uid mn)
 
 ---- | Get rules from modules "below" this one (in the dependency sense) within
 --the home units.
 rulesBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
-rulesBelow = undefined
+rulesBelow hug uid mn = foldr go (pure emptyRuleBase) hug where
+  go hue = liftA2 plusNameEnv (hptRulesBelow (homeUnitEnv_hpt hue) uid mn)
 
 -- | Find instances visible from the given set of imports
 instancesBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
-instancesBelow = undefined
+instancesBelow hug uid mn = foldr go (pure (emptyInstEnv, [])) hug where
+  go hue = liftA2 (\(a,b) (a',b') -> (a `unionInstEnv` a', b ++ b'))
+                  (hptInstancesBelow (homeUnitEnv_hpt hue) uid mn)
+
+-- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
+-- all home units.
+allCompleteSigs :: HomeUnitGraph -> IO CompleteMatches
+allCompleteSigs hug = foldr go (pure []) hug where
+  go hue = liftA2 (++) (hptCompleteSigs (homeUnitEnv_hpt hue))
 
 -- | Find all the instance declarations (of classes and families) from
 -- the Home Package Table filtered by the provided predicate function.
 -- Used in @tcRnImports@, to select the instances that are in the
 -- transitive closure of imports from the currently compiled module.
 allInstances :: HomeUnitGraph -> IO (InstEnv, [FamInst])
-allInstances = undefined
+allInstances hug = foldr go (pure (emptyInstEnv, [])) hug where
+  go hue = liftA2 (\(a,b) (a',b') -> (a `unionInstEnv` a', b ++ b'))
+                  (hptAllInstances (homeUnitEnv_hpt hue))
 
--- ROMES:TODO:
-famInstances :: HomeUnitGraph -> IO (ModuleEnv FamInstEnv)
-famInstances = undefined
-   -- mkModuleEnv [ (hmiModule hmi, hmiFamInstEnv hmi)
-   --                             | hpt <- unitEnv_hpts hug
-   --                             , hmi <- eltsHpt hpt ]
 
---              ; hmiModule     = mi_module . hm_iface
---              ; hmiFamInstEnv = extendFamInstEnvList emptyFamInstEnv
---                                . md_fam_insts . hm_details
+-- ROMES:TODO: Figure out why the return type of allInstances is this
+-- "[FamInstance]" rather than the something like "famInstances"
+
+-- | ROMES:TODO: Write a comment
+allFamInstances :: HomeUnitGraph -> IO (ModuleEnv FamInstEnv)
+allFamInstances hug = foldr go (pure emptyModuleEnv) hug where
+  go hue = liftA2 plusModuleEnv (hptAllFamInstances (homeUnitEnv_hpt hue))
+
 
 --------------------------------------------------------------------------------
 -- OK?
@@ -207,11 +209,6 @@ addHomeModInfoToHug hmi hug =
     hmi_unit = toUnitId (moduleUnit hmi_mod)
     _hmi_mn   = moduleName hmi_mod
 
-
--- | Set the 'DynFlags' of the 'HomeUnitEnv' for unit in the 'HomeModuleGraph'
-updateUnitFlags :: UnitId -> (DynFlags -> DynFlags) -> HomeUnitGraph -> HomeUnitGraph
-updateUnitFlags uid f = undefined
-
 -- | Rename a unit id in the 'HomeUnitGraph'
 --
 -- @'renameUnitId' oldUnit newUnit hug@, if @oldUnit@ is not found in @hug@, returns 'Nothing'.
@@ -227,6 +224,12 @@ renameUnitId oldUnit newUnit hug = case unitEnv_lookup_maybe oldUnit hug of
 -- | Retrieve all 'UnitId's of units in the 'HomeUnitGraph'.
 allUnits :: HomeUnitGraph -> Set.Set UnitId
 allUnits = unitEnv_keys
+
+-- | Set the 'DynFlags' of the 'HomeUnitEnv' for unit in the 'HomeModuleGraph'
+updateUnitFlags :: UnitId -> (DynFlags -> DynFlags) -> HomeUnitGraph -> HomeUnitGraph
+updateUnitFlags uid f = unitEnv_adjust update uid
+  where
+    update hue = hue { homeUnitEnv_dflags = f (homeUnitEnv_dflags hue) }
 
 --------------------------------------------------------------------------------
 -- ** Reachability
@@ -278,9 +281,9 @@ lookupHugUnit = unitEnv_lookup_maybe
 
 --------------------------------------------------------------------------------
 -- * Internal representation map
--- Note that we purposefully do not export functions like "elems" to maintain a
--- good interface with the HUG.
 --------------------------------------------------------------------------------
+-- Note: we purposefully do not export functions like "elems" to maintain a
+-- good clean interface with the HUG.
 
 type UnitEnvGraphKey = UnitId
 

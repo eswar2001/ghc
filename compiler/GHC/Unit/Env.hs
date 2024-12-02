@@ -152,11 +152,6 @@ hugAnnsBelow = HUG.annsBelow . ue_home_unit_graph
 hugRulesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
 hugRulesBelow = HUG.rulesBelow . ue_home_unit_graph
 
--- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
--- all home units.
-hugCompleteSigs :: UnitEnv -> IO CompleteMatches
-hugCompleteSigs = HUG.completeSigs . ue_home_unit_graph
-
 -- | Find instances visible from the given set of imports
 hugInstancesBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
 hugInstancesBelow = HUG.instancesBelow . ue_home_unit_graph
@@ -167,6 +162,11 @@ hugInstancesBelow = HUG.instancesBelow . ue_home_unit_graph
 -- transitive closure of imports from the currently compiled module.
 hugAllInstances :: UnitEnv -> IO (InstEnv, [FamInst])
 hugAllInstances = HUG.allInstances . ue_home_unit_graph
+
+-- | Get all 'CompleteMatches' (arising from COMPLETE pragmas) present across
+-- all home units.
+hugCompleteSigs :: UnitEnv -> IO CompleteMatches
+hugCompleteSigs = HUG.allCompleteSigs . ue_home_unit_graph
 
 --------------------------------------------------------------------------------
 -- TODO::....
