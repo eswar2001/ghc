@@ -46,16 +46,21 @@ module GHC.Unit.Home.Graph
   , annsBelow
   , instancesBelow
 
-  -- * Printing
+  -- * Utilities
+  , hugSCCs
+  , hugFromList
+
+  -- ** Printing
   , pprHomeUnitGraph
   , pprHomeUnitEnv
 
-  -- * Auxiliary structure
+  -- * Auxiliary internal structure
   , UnitEnvGraph
   , unitEnv_lookup_maybe
   , unitEnv_foldWithKey
   , unitEnv_singleton
   , unitEnv_adjust
+  , unitEnv_insert
   ) where
 
 import GHC.Prelude
@@ -77,6 +82,7 @@ import Data.Map.Strict (Map)
 import qualified Data.Map.Strict as Map
 import qualified Data.Set as Set
 import GHC.Data.Maybe
+import GHC.Data.Graph.Directed
 
 import GHC.Core.Rules
 import GHC.Types.Annotations
@@ -325,6 +331,17 @@ unitEnv_foldWithKey f z (UnitEnvGraph g)= Map.foldlWithKey' f z g
 --------------------------------------------------------------------------------
 -- * Utilities
 --------------------------------------------------------------------------------
+
+hugSCCs :: HomeUnitGraph -> [SCC UnitId]
+hugSCCs hug = sccs where
+  mkNode :: (UnitId, HomeUnitEnv) -> Node UnitId UnitId
+  mkNode (uid, hue) = DigraphNode uid uid (homeUnitDepends (homeUnitEnv_units hue))
+  nodes = map mkNode (Map.toList $ unitEnv_graph hug)
+
+  sccs = stronglyConnCompFromEdgedVerticesOrd nodes
+
+hugFromList :: [(UnitId, HomeUnitEnv)] -> HomeUnitGraph
+hugFromList = UnitEnvGraph . Map.fromList
 
 pprHomeUnitGraph :: HomeUnitGraph -> IO SDoc
 pprHomeUnitGraph unitEnv = do
