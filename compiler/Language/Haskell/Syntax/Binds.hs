@@ -359,6 +359,8 @@ data Sig pass
         -- | An old-form specialisation pragma
         --
         -- > {-# SPECIALISE f :: Int -> Int #-}
+        --
+        -- NB: this constructor is deprecated and will be removed in GHC 9.18 (#25540)
   | SpecSig     (XSpecSig pass)
                 (LIdP pass)        -- Specialise a function or datatype  ...
                 [LHsSigType pass]  -- ... to these types

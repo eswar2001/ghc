@@ -573,7 +573,11 @@ instance Diagnostic PsMessage where
 
     PsErrSpecExprMultipleTypeAscription
       -> mkSimpleDecorated $
-        text "SPECIALIZE expression doesn't support multiple specialize type ascriptions"
+           text "SPECIALISE expression doesn't support multiple type ascriptions"
+
+    PsWarnSpecMultipleTypeAscription
+      -> mkSimpleDecorated $
+           text "SPECIALISE pragmas with multiple type ascriptions are deprecated, and will be removed in GHC 9.18"
 
   diagnosticReason  = \case
     PsUnknownMessage m                            -> diagnosticReason m
@@ -694,6 +698,7 @@ instance Diagnostic PsMessage where
     PsErrIllegalOrPat{}                           -> ErrorWithoutFlag
     PsErrTypeSyntaxInPat{}                        -> ErrorWithoutFlag
     PsErrSpecExprMultipleTypeAscription{}         -> ErrorWithoutFlag
+    PsWarnSpecMultipleTypeAscription{}            -> WarningWithFlag Opt_WarnDeprecatedPragmas
 
   diagnosticHints = \case
     PsUnknownMessage m                            -> diagnosticHints m
@@ -863,7 +868,8 @@ instance Diagnostic PsMessage where
     PsErrInvalidPun {}                            -> [suggestExtension LangExt.ListTuplePuns]
     PsErrIllegalOrPat{}                           -> [suggestExtension LangExt.OrPatterns]
     PsErrTypeSyntaxInPat{}                        -> noHints
-    PsErrSpecExprMultipleTypeAscription {}        -> noHints
+    PsErrSpecExprMultipleTypeAscription {}        -> [SuggestSplittingIntoSeveralSpecialisePragmas]
+    PsWarnSpecMultipleTypeAscription{}            -> [SuggestSplittingIntoSeveralSpecialisePragmas]
 
   diagnosticCode = constructorCode
 

@@ -83,15 +83,22 @@ instance Diagnostic DsMessage where
                StrictBinds       -> "strict bindings"
          in mkSimpleDecorated $
               hang (text "Top-level" <+> text desc <+> text "aren't allowed:") 2 (ppr bind)
-    DsUselessSpecialiseForClassMethodSelector poly_id
-      -> mkSimpleDecorated $
-           text "Ignoring useless SPECIALISE pragma for class selector:" <+> quotes (ppr poly_id)
-    DsUselessSpecialiseForNoInlineFunction poly_id
-      -> mkSimpleDecorated $
-          text "Ignoring useless SPECIALISE pragma for NOINLINE function:" <+> quotes (ppr poly_id)
-    DsUselessSpecialise poly_id
-      -> mkSimpleDecorated $
-          text "Ignoring useless SPECIALISE pragma for:" <+> quotes (ppr poly_id)
+    DsUselessSpecialisePragma poly_id rea ->
+      mkSimpleDecorated $
+        what <+> text "SPECIALISE pragma for" <> why
+      where
+        quoted_id = quotes (ppr poly_id)
+        what =
+          if uselessSpecialisePragmaKeepAnyway rea
+          then text "Seemingly useless"
+          else text "Ignoring useless"
+        why = case rea of
+          UselessSpecialiseForClassMethodSelector ->
+            text " class selector:" <+> quoted_id
+          UselessSpecialiseForNoInlineFunction ->
+            text " NOINLINE function:" <+> quoted_id
+          UselessSpecialiseNoSpecialisation ->
+            colon <+> quoted_id
     DsOrphanRule rule
       -> mkSimpleDecorated $ text "Orphan rule:" <+> ppr rule
     DsRuleLhsTooComplicated orig_lhs lhs2
@@ -227,9 +234,7 @@ instance Diagnostic DsMessage where
     DsNonExhaustivePatterns _ (ExhaustivityCheckType mb_flag) _ _ _
       -> maybe WarningWithoutFlag WarningWithFlag mb_flag
     DsTopLevelBindsNotAllowed{}                 -> ErrorWithoutFlag
-    DsUselessSpecialiseForClassMethodSelector{} -> WarningWithoutFlag
-    DsUselessSpecialiseForNoInlineFunction{}    -> WarningWithoutFlag
-    DsUselessSpecialise{}                       -> WarningWithoutFlag
+    DsUselessSpecialisePragma{}                 -> WarningWithFlag Opt_WarnUselessSpecialisations
     DsOrphanRule{}                              -> WarningWithFlag Opt_WarnOrphans
     DsRuleLhsTooComplicated{}                   -> WarningWithoutFlag
     DsRuleIgnoredDueToConstructor{}             -> WarningWithoutFlag
@@ -264,9 +269,7 @@ instance Diagnostic DsMessage where
     DsMaxPmCheckModelsReached{}                 -> [SuggestIncreaseMaxPmCheckModels]
     DsNonExhaustivePatterns{}                   -> noHints
     DsTopLevelBindsNotAllowed{}                 -> noHints
-    DsUselessSpecialiseForClassMethodSelector{} -> noHints
-    DsUselessSpecialiseForNoInlineFunction{}    -> noHints
-    DsUselessSpecialise{}                       -> noHints
+    DsUselessSpecialisePragma{}                 -> noHints
     DsOrphanRule{}                              -> noHints
     DsRuleLhsTooComplicated{}                   -> noHints
     DsRuleIgnoredDueToConstructor{}             -> noHints

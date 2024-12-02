@@ -1,5 +1,6 @@
 
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE TypeFamilies #-}
 
 {-
@@ -84,6 +85,7 @@ import GHC.Utils.Outputable
 import GHC.Utils.Panic
 
 import Control.Monad
+
 
 {-**********************************************************************
 *                                                                      *
@@ -974,29 +976,22 @@ finishSpecPrag :: Name -> CoreExpr                    -- RHS to specialise
                -> DsM (Maybe (OrdList (Id,CoreExpr), CoreRule))
 finishSpecPrag poly_nm poly_rhs rule_bndrs poly_id rule_args
                                 spec_bndrs mk_spec_body spec_inl
-  | isJust (isClassOpId_maybe poly_id)
-  = do { diagnosticDs (DsUselessSpecialiseForClassMethodSelector poly_nm)
-       ; return Nothing  }  -- There is no point in trying to specialise a class op
-                            -- Moreover, classops don't (currently) have an inl_sat arity set
-                            -- (it would be Just 0) and that in turn makes makeCorePair bleat
-
-  | no_act_spec && isNeverActive rule_act
-  = do { diagnosticDs (DsUselessSpecialiseForNoInlineFunction poly_nm)
-       ; return Nothing  }  -- Function is NOINLINE, and the specialisation inherits that
-                            -- See Note [Activation pragmas for SPECIALISE]
-
-  | all is_nop_arg rule_args
-  = do { diagnosticDs (DsUselessSpecialise poly_nm)
-       ; return Nothing  }  -- Specialisation does nothing
-
-  | otherwise
-  -- The RULE looks like
-  --    RULE "USPEC" forall rule_bndrs. f rule_args = $sf spec_bndrs
-  -- The specialised function looks like
-  --    $sf spec_bndrs = mk_spec_body <f's original rhs>
-  -- We also use mk_spec_body to specialise the methods in f's stable unfolding
-  -- NB: spec_bindrs is a subset of rule_bndrs
-  = do { this_mod <- getModule
+  = do { want_spec <-
+            case mb_useless of
+              Just useless ->
+                 do { diagnosticDs $ DsUselessSpecialisePragma poly_nm useless
+                    ; return $ uselessSpecialisePragmaKeepAnyway useless }
+              Nothing -> return True
+       ; if not want_spec
+         then return Nothing
+         else Just <$>
+    -- The RULE looks like
+    --    RULE "USPEC" forall rule_bndrs. f rule_args = $sf spec_bndrs
+    -- The specialised function looks like
+    --    $sf spec_bndrs = mk_spec_body <f's original rhs>
+    -- We also use mk_spec_body to specialise the methods in f's stable unfolding
+    -- NB: spec_bindrs is a subset of rule_bndrs
+    do { this_mod <- getModule
        ; uniq     <- newUnique
        ; dflags   <- getDynFlags
        ; let poly_name  = idName poly_id
@@ -1025,12 +1020,29 @@ finishSpecPrag poly_nm poly_rhs rule_bndrs poly_id rule_args
             [ text "fun:" <+> ppr poly_id
             , text "spec_bndrs:" <+>  ppr spec_bndrs
             , text "args:" <+>  ppr rule_args ])
-       ; return (Just (unitOL (spec_id, spec_rhs), rule))
+       ; return (unitOL (spec_id, spec_rhs), rule)
             -- NB: do *not* use makeCorePair on (spec_id,spec_rhs), because
             --     makeCorePair overwrites the unfolding, which we have
             --     just created using specUnfolding
-       }
+       } }
   where
+    -- Is this SPECIALISE pragma useless?
+    mb_useless =
+      if | isJust (isClassOpId_maybe poly_id)
+         -- There is no point in trying to specialise a class op
+         -- Moreover, classops don't (currently) have an inl_sat arity set
+         -- (it would be Just 0) and that in turn makes makeCorePair bleat
+         -> Just UselessSpecialiseForClassMethodSelector
+         | no_act_spec && isNeverActive rule_act
+         -- Function is NOINLINE, and the specialisation inherits that
+         -- See Note [Activation pragmas for SPECIALISE]
+         -> Just UselessSpecialiseForNoInlineFunction
+         | all is_nop_arg rule_args
+         -- The specialisation does nothing.
+         -> Just UselessSpecialiseNoSpecialisation
+         | otherwise
+         -> Nothing
+
     -- See Note [Activation pragmas for SPECIALISE]
     -- no_act_spec is True if the user didn't write an explicit
     -- phase specification in the SPECIALISE pragma

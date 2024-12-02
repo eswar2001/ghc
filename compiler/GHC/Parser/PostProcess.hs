@@ -1069,19 +1069,18 @@ mkSpecSig inl_prag activation_anns m_rule_binds expr m_sigtypes_ascr
         -- Use the old SpecSig route
         | Nothing <- m_rule_binds
         , L _ (HsVar _ var) <- expr
-        -> pure $
-           SpecSig activation_anns
-                   var sigtype_list inl_prag
+        -> do addPsMessage sigs_loc PsWarnSpecMultipleTypeAscription
+              pure $
+                SpecSig activation_anns var sigtype_list inl_prag
 
-        | otherwise -> ps_err PsErrSpecExprMultipleTypeAscription
+        | otherwise ->
+            addFatalError $
+              mkPlainErrorMsgEnvelope sigs_loc PsErrSpecExprMultipleTypeAscription
 
         where
           sigtype_list = fromOL sigtype_ol
-
-  where
-    ps_err = addFatalError
-           . mkPlainErrorMsgEnvelope
-              (getHasLoc (ass_open activation_anns) `combineSrcSpans` getHasLoc (ass_close activation_anns))
+          sigs_loc =
+            getHasLoc colon_ann `combineSrcSpans` getHasLoc (last sigtype_list)
 
 checkRecordSyntax :: (MonadP m, Outputable a) => LocatedA a -> m (LocatedA a)
 checkRecordSyntax lr@(L loc r)

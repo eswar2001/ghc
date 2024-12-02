@@ -1,5 +1,14 @@
 # Changelog for [`template-haskell` package](http://hackage.haskell.org/package/template-haskell)
 
+## 2.24.0.0
+
+  * As part of the implementation of [GHC proposal 493](https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0493-specialise-expressions.rst),
+    the ``SpecialiseP`` constructor of `Pragma`, as well as the helper functions
+    `pragSpecD` and `pragSpecInlD`, have been deprecated.
+
+    They are replaced, respectively, by `SpecialiseEP`, `pragSpecED` and
+    `pragSpecInlED`.
+
 ## 2.23.0.0
 
   * Extend `Exp` with `ForallE`, `ForallVisE`, `ConstraintedE`,

@@ -2593,6 +2593,7 @@ data TcRnMessage where
                 typecheck/should_compile/T10504
   -}
   TcRnNonOverloadedSpecialisePragma :: !(LIdP GhcRn) -> TcRnMessage
+    -- NB: this constructor is deprecated and will be removed in GHC 9.18 (#25540)
 
   {-| TcRnSpecialiseNotVisible is a warning that occurs when the subject of a
      SPECIALISE pragma has a definition that is not visible from the current module.

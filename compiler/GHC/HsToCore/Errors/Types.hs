@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeFamilies #-}
 
 module GHC.HsToCore.Errors.Types where
@@ -105,11 +106,17 @@ data DsMessage
 
   | DsTopLevelBindsNotAllowed !BindsType !(HsBindLR GhcTc GhcTc)
 
-  | DsUselessSpecialiseForClassMethodSelector !Name
+    {-| DsUselessSpecialisePragma is a warning (controlled by the -Wuseless-specialisations flag)
+        that is emitted for SPECIALISE pragmas that don't do anything.
 
-  | DsUselessSpecialiseForNoInlineFunction !Name
+        Examples:
 
-  | DsUselessSpecialise !Name
+          foo :: forall a. a -> a
+          {-# SPECIALISE foo :: Int -> Int #-}
+    -}
+  | DsUselessSpecialisePragma
+      !Name
+      !UselessSpecialisePragmaReason
 
   | DsOrphanRule !CoreRule
 
@@ -196,6 +203,26 @@ data ThRejectionReason
   | ThWarningAndDeprecationPragmas [LIdP GhcRn]
   | ThSplicesWithinDeclBrackets
   | ThNonLinearDataCon
+
+-- | Why is a @SPECIALISE@ pragmas useless?
+data UselessSpecialisePragmaReason
+  -- | Useless @SPECIALISE@ pragma for a class method
+  = UselessSpecialiseForClassMethodSelector
+  -- | Useless @SPECIALISE@ pragma for a function with NOINLINE
+  | UselessSpecialiseForNoInlineFunction
+  -- | Useless @SPECIALISE@ pragma which generates a specialised function
+  -- which is identical to the original function at runtime.
+  | UselessSpecialiseNoSpecialisation
+  deriving Generic
+
+uselessSpecialisePragmaKeepAnyway :: UselessSpecialisePragmaReason -> Bool
+uselessSpecialisePragmaKeepAnyway = \case
+  UselessSpecialiseForClassMethodSelector -> False
+  UselessSpecialiseForNoInlineFunction -> False
+  UselessSpecialiseNoSpecialisation -> True
+    -- See #25389/T25389 for why we might want to keep this specialisation
+    -- around even if it seemingly does nothing.
+
 
 data NegLiteralExtEnabled
   = YesUsingNegLiterals

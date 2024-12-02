@@ -28,7 +28,7 @@ import GHC.Core.InstEnv (LookupInstanceErrReason)
 import GHC.Iface.Errors.Types
 import GHC.Driver.Errors.Types   ( DriverMessage, GhcMessageOpts, DriverMessageOpts )
 import GHC.Parser.Errors.Types   ( PsMessage, PsHeaderMessage )
-import GHC.HsToCore.Errors.Types ( DsMessage )
+import GHC.HsToCore.Errors.Types ( DsMessage, UselessSpecialisePragmaReason )
 import GHC.Tc.Errors.Types
 import GHC.Unit.Module.Warnings ( WarningTxt )
 import GHC.Utils.Panic.Plain
@@ -147,9 +147,6 @@ type family GhcDiagnosticCode c = n | n -> c where
   GhcDiagnosticCode "DsMaxPmCheckModelsReached"                     = 61505
   GhcDiagnosticCode "DsNonExhaustivePatterns"                       = 62161
   GhcDiagnosticCode "DsTopLevelBindsNotAllowed"                     = 48099
-  GhcDiagnosticCode "DsUselessSpecialiseForClassMethodSelector"     = 93315
-  GhcDiagnosticCode "DsUselessSpecialiseForNoInlineFunction"        = 38524
-  GhcDiagnosticCode "DsUselessSpecialise"                           = 66582
   GhcDiagnosticCode "DsOrphanRule"                                  = 58181
   GhcDiagnosticCode "DsRuleLhsTooComplicated"                       = 69441
   GhcDiagnosticCode "DsRuleIgnoredDueToConstructor"                 = 00828
@@ -166,6 +163,10 @@ type family GhcDiagnosticCode c = n | n -> c where
   GhcDiagnosticCode "DsAnotherRuleMightFireFirst"                   = 87502
   GhcDiagnosticCode "DsIncompleteRecordSelector"                    = 17335
 
+    -- Constructors of 'UselessSpecialisePragmaReason'
+  GhcDiagnosticCode "UselessSpecialiseForClassMethodSelector"       = 93315
+  GhcDiagnosticCode "UselessSpecialiseForNoInlineFunction"          = 38524
+  GhcDiagnosticCode "UselessSpecialiseNoSpecialisation"             = 66582
 
   -- Parser diagnostic codes
   GhcDiagnosticCode "PsErrParseLanguagePragma"                      = 68686
@@ -292,6 +293,7 @@ type family GhcDiagnosticCode c = n | n -> c where
   GhcDiagnosticCode "PsErrIllegalOrPat"                             = 29847
   GhcDiagnosticCode "PsErrTypeSyntaxInPat"                          = 32181
   GhcDiagnosticCode "PsErrSpecExprMultipleTypeAscription"           = 62037
+  GhcDiagnosticCode "PsWarnSpecMultipleTypeAscription"              = 73026
 
   -- Driver diagnostic codes
   GhcDiagnosticCode "DriverMissingHomeModules"                      = 32850
@@ -907,7 +909,11 @@ type family GhcDiagnosticCode c = n | n -> c where
   -- NB: never remove a return value from this type family!
   -- We need to ensure uniquess of diagnostic codes across GHC versions,
   -- and this includes outdated diagnostic codes for errors that GHC
-  -- no longer reports. These are collected below.
+  -- no longer reports.
+  --
+  -- We used to collect all the outdated diagnostic codes below, but this
+  -- turned out to be a source of merge conflicts, so we no longer move
+  -- a diagnostic below when marking it outdated.
 
   GhcDiagnosticCode "TcRnIllegalInstanceHeadDecl"                   = Outdated 12222
   GhcDiagnosticCode "TcRnNoClassInstHead"                           = Outdated 56538
@@ -981,6 +987,11 @@ type family ConRecursInto con where
 
   ConRecursInto "PsUnknownMessage"         = 'Just (UnknownDiagnostic NoDiagnosticOpts)
   ConRecursInto "PsHeaderMessage"          = 'Just PsHeaderMessage
+
+  ----------------------------------
+  -- Constructors of DsMessage
+
+  ConRecursInto "DsUselessSpecialisePragma" = 'Just UselessSpecialisePragmaReason
 
   ----------------------------------
   -- Constructors of TcRnMessage

@@ -2165,6 +2165,8 @@ data Pragma = InlineP         Name Inline RuleMatch Phases
             -- ^ @{ {\-\# OPAQUE T #-} }@
             | SpecialiseP     Name Type (Maybe Inline) Phases
             -- ^ @{ {\-\# SPECIALISE [INLINE] [phases] nm :: ty #-} }@
+            --
+            -- NB: this constructor is deprecated and will be removed in GHC 9.18
             | SpecialiseEP    (Maybe [TyVarBndr ()]) [RuleBndr] Exp (Maybe Inline) Phases
             -- ^ @{ {\-\# SPECIALISE [INLINE] [phases] exp #-} }@
             | SpecialiseInstP Type
