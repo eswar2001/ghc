@@ -144,7 +144,7 @@ import GHC.Core.FamInstEnv
 -- | Get annotations from all modules "below" this one (in the dependency
 -- sense) within the home units. If the module is @Nothing@, returns /all/
 -- annotations in the home units.
-hugAnnsBelow :: UnitEnv -> Maybe (UnitId, ModuleNameWithIsBoot) -> IO AnnEnv
+hugAnnsBelow :: UnitEnv -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
 hugAnnsBelow = HUG.annsBelow . ue_home_unit_graph
 
 ---- | Get rules from modules "below" this one (in the dependency sense) within

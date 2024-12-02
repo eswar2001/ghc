@@ -58,6 +58,9 @@ module GHC.Unit.Home.PackageTable
     -- | These are the queries which also require access to the 'ModuleGraph'
     -- which describes the structure of the modules, rather than being "global queries".
     -- Typically about the transitive closure
+  , hptRulesBelow
+  , hptAnnsBelow
+  , hptInstancesBelow
 
     -- * Traversal-based queries
   , hptCollectDependencies
@@ -85,6 +88,12 @@ import GHC.Unit.Module.Deps
 import GHC.Unit.Module.ModIface
 import GHC.Utils.Outputable
 import Control.Monad ((<$!>))
+
+import GHC.Core.Rules
+import GHC.Types.Annotations
+import GHC.Types.CompleteMatch
+import GHC.Core.InstEnv
+import GHC.Core.FamInstEnv
 
 -- | Helps us find information about modules in the home package
 data HomePackageTable = HPT {
@@ -189,6 +198,15 @@ hptLastLoadedKey HPT{lastLoadedKey} = lastLoadedKey
 ----------------------------------------------------------------------------------
 ---- * Queries on Transitive Closure
 ----------------------------------------------------------------------------------
+
+hptRulesBelow :: HomePackageTable -> UnitId -> ModuleNameWithIsBoot -> IO RuleBase
+hptRulesBelow = undefined
+
+hptAnnsBelow :: HomePackageTable -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
+hptAnnsBelow = undefined
+
+hptInstancesBelow :: HomePackageTable -> UnitId -> ModuleNameWithIsBoot -> IO (InstEnv, [FamInst])
+hptInstancesBelow = undefined
 
 ---- | Get rules from modules "below" this one (in the dependency sense)
 --hptRules :: HscEnv -> UnitId -> ModuleNameWithIsBoot -> [CoreRule]

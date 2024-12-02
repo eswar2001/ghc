@@ -99,8 +99,11 @@ completeSigs = undefined
 -- | Get annotations from all modules "below" this one (in the dependency
 -- sense) within the home units. If the module is @Nothing@, returns /all/
 -- annotations in the home units.
-annsBelow :: HomeUnitGraph -> Maybe (UnitId, ModuleNameWithIsBoot) -> IO AnnEnv
-annsBelow = undefined
+annsBelow :: HomeUnitGraph -> UnitId -> ModuleNameWithIsBoot -> IO AnnEnv
+annsBelow hug = undefined
+
+--hptAllThings extract hsc_env = concatMap (concatHpt extract . homeUnitEnv_hpt . snd)
+--                                (hugElts (hsc_HUG hsc_env))
 
 ---- | Get rules from modules "below" this one (in the dependency sense) within
 --the home units.
@@ -274,21 +277,10 @@ lookupHugUnit :: UnitId -> HomeUnitGraph -> Maybe HomeUnitEnv
 lookupHugUnit = unitEnv_lookup_maybe
 
 --------------------------------------------------------------------------------
--- TODO:!!!!
+-- * Internal representation map
+-- Note that we purposefully do not export functions like "elems" to maintain a
+-- good interface with the HUG.
 --------------------------------------------------------------------------------
-
-homeUnitEnv_unsafeHomeUnit :: HomeUnitEnv -> HomeUnit
-homeUnitEnv_unsafeHomeUnit hue = case homeUnitEnv_home_unit hue of
-  Nothing -> panic "homeUnitEnv_unsafeHomeUnit: No home unit"
-  Just h  -> h
-
-hugElts :: HomeUnitGraph -> [(UnitId, HomeUnitEnv)]
-hugElts hug = unitEnv_elts hug
-
-updateHueHpt :: (HomePackageTable -> HomePackageTable) -> HomeUnitEnv -> HomeUnitEnv
-updateHueHpt f hue =
-  let !hpt =  f (homeUnitEnv_hpt hue)
-  in hue { homeUnitEnv_hpt = hpt }
 
 type UnitEnvGraphKey = UnitId
 
@@ -312,51 +304,19 @@ unitEnv_adjust f uid unitEnv = unitEnv
   { unitEnv_graph = Map.adjust f uid (unitEnv_graph unitEnv)
   }
 
-unitEnv_alter :: (Maybe v -> Maybe v) -> UnitEnvGraphKey -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_alter f uid unitEnv = unitEnv
-  { unitEnv_graph = Map.alter f uid (unitEnv_graph unitEnv)
-  }
-
-unitEnv_mapWithKey :: (UnitEnvGraphKey -> v -> b) -> UnitEnvGraph v -> UnitEnvGraph b
-unitEnv_mapWithKey f (UnitEnvGraph u) = UnitEnvGraph $ Map.mapWithKey f u
-
-unitEnv_new :: Map UnitEnvGraphKey v -> UnitEnvGraph v
-unitEnv_new m =
-  UnitEnvGraph
-    { unitEnv_graph = m
-    }
-
 unitEnv_singleton :: UnitEnvGraphKey -> v -> UnitEnvGraph v
 unitEnv_singleton active m = UnitEnvGraph
   { unitEnv_graph = Map.singleton active m
   }
 
-unitEnv_map :: (v -> v) -> UnitEnvGraph v -> UnitEnvGraph v
-unitEnv_map f m = m { unitEnv_graph = Map.map f (unitEnv_graph m)}
-
-unitEnv_member :: UnitEnvGraphKey -> UnitEnvGraph v -> Bool
-unitEnv_member u env = Map.member u (unitEnv_graph env)
-
 unitEnv_lookup_maybe :: UnitEnvGraphKey -> UnitEnvGraph v -> Maybe v
 unitEnv_lookup_maybe u env = Map.lookup u (unitEnv_graph env)
-
-unitEnv_lookup :: UnitEnvGraphKey -> UnitEnvGraph v -> v
-unitEnv_lookup u env = fromJust $ unitEnv_lookup_maybe u env
 
 unitEnv_keys :: UnitEnvGraph v -> Set.Set UnitEnvGraphKey
 unitEnv_keys env = Map.keysSet (unitEnv_graph env)
 
-unitEnv_elts :: UnitEnvGraph v -> [(UnitEnvGraphKey, v)]
-unitEnv_elts env = Map.toList (unitEnv_graph env)
-
-unitEnv_hpts :: UnitEnvGraph HomeUnitEnv -> [HomePackageTable]
-unitEnv_hpts env = map homeUnitEnv_hpt (Map.elems (unitEnv_graph env))
-
 unitEnv_foldWithKey :: (b -> UnitEnvGraphKey -> a -> b) -> b -> UnitEnvGraph a -> b
 unitEnv_foldWithKey f z (UnitEnvGraph g)= Map.foldlWithKey' f z g
-
--- unitEnv_union :: (a -> a -> a) -> UnitEnvGraph a -> UnitEnvGraph a -> UnitEnvGraph a
--- unitEnv_union f (UnitEnvGraph env1) (UnitEnvGraph env2) = UnitEnvGraph (Map.unionWith f env1 env2)
 
 --------------------------------------------------------------------------------
 -- * Utilities
