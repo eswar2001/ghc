@@ -46,43 +46,17 @@ module GHC.Unit.Env
     , unsafeGetHomeUnit
     , updateHug
     -- * Unit Env helper functions
-    -- , ue_units
     , ue_currentHomeUnitEnv
-
-    -- Stuff used by Backpack could be simplifeid ehre
-    -- , ue_unit_dbs
-    -- , ue_all_home_unit_ids
     , ue_hpt
-
     , ue_setActiveUnit
     , ue_currentUnit
     , ue_findHomeUnitEnv
     , ue_unitHomeUnit_maybe
     , ue_updateHomeUnitEnv
-    -- , ue_unitHomeUnit
-    -- , ue_unitFlags
-    -- * HomeUnitEnv
+
+    -- * HUG Re-export
     , HomeUnitGraph
     , HomeUnitEnv (..)
-
-    -- , mkHomeUnitEnv
-    -- , lookupHugByModule
-    -- , hugElts
-    -- , lookupHug
-    -- , addHomeModInfoToHug
-    -- * UnitEnvGraph
-    -- , UnitEnvGraph (..)
-    -- , UnitEnvGraphKey
-    -- , unitEnv_new
-    -- , unitEnv_singleton
-    -- , unitEnv_map
-    -- , unitEnv_lookup_maybe
-    -- , unitEnv_lookup
-    -- , unitEnv_keys
-    -- , unitEnv_elts
-    -- , unitEnv_hpts
-    -- , unitEnv_foldWithKey
-    -- , unitEnv_mapWithKey
 
     -- * Invariants
     , assertUnitEnvInvariant
@@ -287,10 +261,6 @@ isUnitEnvInstalledModule ue m = maybe False (`isHomeInstalledModule` m) hu
 -- Operations on arbitrary elements of the home unit graph
 -- -------------------------------------------------------
 
--- ue_findHomeUnitEnv_maybe :: UnitId -> UnitEnv -> Maybe HomeUnitEnv
--- ue_findHomeUnitEnv_maybe uid e =
---   unitEnv_lookup_maybe uid (ue_home_unit_graph e)
-
 ue_findHomeUnitEnv :: HasDebugCallStack => UnitId -> UnitEnv -> HomeUnitEnv
 ue_findHomeUnitEnv uid e = case HUG.lookupHugUnit uid (ue_home_unit_graph e) of
   Nothing -> pprPanic "Unit unknown to the internal unit environment"
@@ -361,12 +331,6 @@ ue_unsafeHomeUnit ue = case homeUnit ue of
 ue_unitHomeUnit_maybe :: UnitId -> UnitEnv -> Maybe HomeUnit
 ue_unitHomeUnit_maybe uid ue_env =
   HUG.homeUnitEnv_home_unit =<< HUG.lookupHugUnit uid (ue_home_unit_graph ue_env)
-
--- ue_unitHomeUnit :: UnitId -> UnitEnv -> HomeUnit
--- ue_unitHomeUnit uid ue_env = homeUnitEnv_unsafeHomeUnit $ ue_findHomeUnitEnv uid ue_env
-
--- ue_all_home_unit_ids :: UnitEnv -> Set.Set UnitId
--- ue_all_home_unit_ids = unitEnv_keys . ue_home_unit_graph
 
 -- -------------------------------------------------------
 -- Query and modify the currently active unit
