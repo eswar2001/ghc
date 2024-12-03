@@ -272,7 +272,7 @@ lookupHug hug uid mod = do
   case unitEnv_lookup_maybe uid hug of
     -- Really, here we want "lookup HPT" rather than unitEnvLookup
     Nothing -> pure Nothing
-    Just hue -> lookupHpt (homeUnitEnv_hpt hue) mod 
+    Just hue -> lookupHpt (homeUnitEnv_hpt hue) mod
 
 -- | Lookup the 'HomeModInfo' of a 'Module' in the 'HomeUnitGraph' (via the 'HomePackageTable' of the corresponding unit)
 lookupHugByModule :: Module -> HomeUnitGraph -> IO (Maybe HomeModInfo)
