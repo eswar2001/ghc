@@ -72,6 +72,16 @@ module GHC.Unit.Home.PackageTable
 
     -- * Utilities
   , pprHPT
+
+    -- * Internals
+    --
+    -- | These provide access to the internals of the HomePackageTable to
+    -- facilitate existing workflows that used the previous API. For instance,
+    -- if you were listing out all elements, you can keep doing so by reading
+    -- the internal IO ref and then listing the moduleenv contents out.
+    --
+    -- In GHC itself these should be avoided.
+  , hptInternalTableRef
   ) where
 
 import GHC.Prelude
@@ -122,7 +132,7 @@ data HomePackageTable = HPT {
     -- about the table 'HomeModInfo' updates. On insertions we must make sure to
     -- update this field (insertions can only be done through the API exposed).
 
-    lastLoadedKey :: !(Maybe Unique)
+    lastLoadedKey :: Maybe Unique
     -- ^ What was the last module loaded into this HPT?
     --
     -- Like 'hasHoles', this is a cache that is updated with insertions and kept
@@ -180,12 +190,15 @@ addHomeModInfoToHpt :: HomeModInfo -> HomePackageTable -> IO HomePackageTable
 addHomeModInfoToHpt hmi hpt = addToHpt hpt (moduleName (mi_module (hm_iface hmi))) hmi
   where
     addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
-    addToHpt HPT{table=hptr, hasHoles} mn hmi = do
-      atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
+    addToHpt HPT{table=hptr, hasHoles, lastLoadedKey} mn hmi = do
+      alreadyExisted <- atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, elemUDFM mn hpt))
+      -- If the key already existed in the map, this insertion is overwriting
+      -- the HMI of a previously loaded module (likely in rehydration).
       return
         HPT{ table = hptr
            , hasHoles = hasHoles && isHoleModule (mi_semantic_module (hm_iface hmi))
-           , lastLoadedKey = Just $! getUnique mn
+           , lastLoadedKey = if alreadyExisted then lastLoadedKey
+                                               else Just $! getUnique mn
            }
 
 ----------------------------------------------------------------------------------
@@ -429,3 +442,12 @@ concatHpt f HPT{table} = do
   return $ concat . eltsUDFM . mapMaybeUDFM g $ hpt
   where
     g hmi = case f hmi of { [] -> Nothing; as -> Just as }
+
+--------------------------------------------------------------------------------
+-- * Internals (see haddocks!)
+--------------------------------------------------------------------------------
+
+-- | Gets the internal 'IORef' which holds the 'HomeModInfo's of this HPT.
+-- Use with care.
+hptInternalTableRef :: HomePackageTable -> IORef (DModuleNameEnv HomeModInfo)
+hptInternalTableRef = table

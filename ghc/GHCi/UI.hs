@@ -4494,10 +4494,13 @@ discardInterfaceCache =
 
 clearHPTs :: GhciMonad m => m ()
 clearHPTs = do
-  let pruneHomeUnitEnv hme = hme { homeUnitEnv_hpt = emptyHomePackageTable }
+  let pruneHomeUnitEnv hme = do
+        emptyHpt <- newHomePackageTable
+        pure  hme{ homeUnitEnv_hpt = emptyHpt }
       discardMG hsc = hsc { hsc_mod_graph = GHC.emptyMG }
-  modifySession (discardMG . discardIC . hscUpdateHUG (unitEnv_map pruneHomeUnitEnv))
-
+  modifySessionM $ \hsc_env -> do
+    hug' <- traverse pruneHomeUnitEnv $ hsc_HUG hsc_env
+    pure $ discardMG $ discardIC $ hscUpdateHUG (const hug') hsc_env
 
 -- The unused package warning doesn't make sense once the targets get out of
 -- sync with the package flags. See #21110
