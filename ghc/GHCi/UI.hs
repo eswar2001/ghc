@@ -53,7 +53,7 @@ import GHC.Driver.Phases
 import GHC.Driver.Session as DynFlags
 import GHC.Driver.Ppr hiding (printForUser)
 import GHC.Utils.Error hiding (traceCmd)
-import GHC.Driver.Monad ( modifySession )
+import GHC.Driver.Monad ( modifySession, modifySessionM )
 import GHC.Driver.Make ( newIfaceCache, ModIfaceCache(..) )
 import GHC.Driver.Config.Parser (initParserOpts)
 import GHC.Driver.Config.Diagnostic
@@ -143,7 +143,7 @@ import GHC.Utils.Exception as Exception hiding (catch, mask, handle)
 import Foreign hiding (void)
 import GHC.Stack hiding (SrcLoc(..))
 import GHC.Unit.Env
-import GHC.Unit.Home.ModInfo
+import GHC.Unit.Home.PackageTable
 
 import System.Directory
 import System.Environment
@@ -4494,7 +4494,7 @@ discardInterfaceCache =
 
 clearHPTs :: GhciMonad m => m ()
 clearHPTs = do
-  let pruneHomeUnitEnv hme = do
+  let pruneHomeUnitEnv hme = liftIO $ do
         emptyHpt <- newHomePackageTable
         pure  hme{ homeUnitEnv_hpt = emptyHpt }
       discardMG hsc = hsc { hsc_mod_graph = GHC.emptyMG }

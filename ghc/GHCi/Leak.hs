@@ -7,6 +7,7 @@ module GHCi.Leak
 
 import Control.Monad
 import Data.Bits
+import Data.IORef
 import Foreign.Ptr (ptrToIntPtr, intPtrToPtr)
 import GHC
 import GHC.Ptr (Ptr (..))
@@ -16,6 +17,7 @@ import GHC.Driver.Ppr
 import GHC.Utils.Outputable
 import GHC.Unit.Module.ModDetails
 import GHC.Unit.Home.ModInfo
+import GHC.Unit.Home.PackageTable
 import GHC.Platform (target32Bit)
 import GHC.Linker.Types
 import Prelude
