@@ -65,6 +65,7 @@ import GHC.Builtin.Types ( naturalTy, typeSymbolKind, charTy )
 import GHC.Tc.Types.Evidence
 
 import GHC.Types.Id
+import GHC.Types.Id.Info (IdDetails(..))
 import GHC.Types.Name
 import GHC.Types.Var.Set
 import GHC.Types.Var.Env
@@ -992,7 +993,7 @@ finishSpecPrag :: Name -> CoreExpr                    -- RHS to specialise
 finishSpecPrag poly_nm poly_rhs rule_bndrs poly_id rule_args
                                 spec_bndrs mk_spec_body spec_inl
   | Just reason <- mb_useless
-  = do { diagnosticDs $ DsUselessSpecialisePragma poly_nm reason
+  = do { diagnosticDs $ DsUselessSpecialisePragma poly_nm is_dfun reason
        ; if uselessSpecialisePragmaKeepAnyway reason
          then Just <$> finish_prag
          else return Nothing }
@@ -1083,6 +1084,10 @@ finishSpecPrag poly_nm poly_rhs rule_bndrs poly_id rule_args
     is_nop_arg (Tick _ e)    = is_nop_arg e
     is_nop_arg (Var x)       = x `elem` spec_bndrs
     is_nop_arg _             = False
+
+    is_dfun = case idDetails poly_id of
+      DFunId {} -> True
+      _ -> False
 
 specFunInlinePrag :: Id -> InlinePragma
                   -> InlinePragma -> InlinePragma

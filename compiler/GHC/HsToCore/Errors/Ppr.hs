@@ -83,22 +83,29 @@ instance Diagnostic DsMessage where
                StrictBinds       -> "strict bindings"
          in mkSimpleDecorated $
               hang (text "Top-level" <+> text desc <+> text "aren't allowed:") 2 (ppr bind)
-    DsUselessSpecialisePragma poly_id rea ->
+    DsUselessSpecialisePragma poly_nm is_dfun rea ->
       mkSimpleDecorated $
-        what <+> text "SPECIALISE pragma for" <> why
+        what <+> pragma <+> text "pragma" <+> why
       where
-        quoted_id = quotes (ppr poly_id)
+        quoted_nm = quotes (ppr poly_nm)
         what =
           if uselessSpecialisePragmaKeepAnyway rea
           then text "Seemingly useless"
           else text "Ignoring useless"
+        pragma = if is_dfun
+                 then text "SPECIALISE instance"
+                 else text "SPECIALISE"
         why = case rea of
           UselessSpecialiseForClassMethodSelector ->
-            text " class selector:" <+> quoted_id
+            text "for class selector:" <+> quoted_nm
           UselessSpecialiseForNoInlineFunction ->
-            text " NOINLINE function:" <+> quoted_id
+            text "for NOINLINE function:" <+> quoted_nm
           UselessSpecialiseNoSpecialisation ->
-            colon <+> quoted_id
+            if is_dfun
+              -- Omit the Name for a DFunId, as it will be internal and not
+              -- very illuminating to users who don't know what a DFunId is.
+            then empty
+            else text "for:" <+> quoted_nm
     DsOrphanRule rule
       -> mkSimpleDecorated $ text "Orphan rule:" <+> ppr rule
     DsRuleLhsTooComplicated orig_lhs lhs2

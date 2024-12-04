@@ -116,6 +116,7 @@ data DsMessage
     -}
   | DsUselessSpecialisePragma
       !Name
+      !Bool -- ^ is this a @SPECIALISE instance@ pragma?
       !UselessSpecialisePragmaReason
 
   | DsOrphanRule !CoreRule
