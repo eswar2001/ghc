@@ -710,7 +710,8 @@ tcXExpr (PopErrCtxt e) res_ty
 
 tcXExpr (ExpandedThingRn o@(OrigStmt stmt flav) e) res_ty
    = addThingCtxt o $
-       mkExpandedStmtTc stmt flav <$> tcExpr e res_ty
+       mkExpandedStmtTc stmt flav <$>
+       tcExpr e res_ty
 
 -- For record selection
 tcXExpr xe res_ty = tcApp (XExpr xe) res_ty

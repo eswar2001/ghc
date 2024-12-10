@@ -260,7 +260,7 @@ instance Outputable QLFlag where
   ppr NoQL = text "NoQL"
 
 instance Outputable AppCtxt where
-  ppr (VAExpansion e l _) = text "VAExpansion" <+> ppr e <+> ppr l
+  ppr (VAExpansion e l l') = text "VAExpansion" <+> ppr e <+> ppr l <+> ppr l'
   ppr (VACall f n l)    = text "VACall" <+> int n <+> ppr f  <+> ppr l
 
 type family XPass (p :: TcPass) where

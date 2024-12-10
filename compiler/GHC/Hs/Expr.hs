@@ -548,7 +548,7 @@ data XXExprGhcRn
                     }
 
   | PopErrCtxt                                     -- A hint for typechecker to pop
-    {-# UNPACK #-} !(HsExpr GhcRn)                -- the top of the error context stack
+    {-# UNPACK #-} !(HsExpr GhcRn)                 -- the top of the error context stack
                                                    -- Does not presist post renaming phase
                                                    -- See Part 3. of Note [Expanding HsDo with XXExprGhcRn]
                                                    -- in `GHC.Tc.Gen.Do`
