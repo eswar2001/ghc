@@ -91,6 +91,7 @@ import qualified Data.Map as Map
 import qualified Data.Set as Set
 import GHC.Types.Error (mkUnknownDiagnostic)
 import qualified GHC.Unit.Home.Graph as HUG
+import GHC.Unit.Home.ModInfo
 import GHC.Unit.Home.PackageTable
 
 -- | Entry point to compile a Backpack file.
@@ -342,18 +343,17 @@ buildUnit session cid insts lunit = do
 
         -- Compile relevant only
         hsc_env <- getSession
-        linkables <- liftIO $ hptCollectObjects (hsc_HPT hsc_env)
+        let takeLinkables x
+              | mi_hsc_src (hm_iface x) == HsSrcFile
+              = [Just $ expectJust "bkp link" $ homeModInfoObject x]
+              | otherwise
+              = [Nothing]
+        linkables <- liftIO $ catMaybes <$> concatHpt takeLinkables (hsc_HPT hsc_env)
         let
-                      -- ROMES:TODO: before we filtered by HsSrcFile, but that
-                      -- seems irrelevant because boots or sigs shouldn't have
-                      -- linkables in the first place?
-                      -- map (expectJust "bkp link" . homeModInfoObject)
-                      -- . filter ((==HsSrcFile) . mi_hsc_src . hm_iface) $
-                      -- home_mod_infos
             obj_files = concatMap linkableFiles linkables
             state     = hsc_units hsc_env
 
-        let compat_fs = unitIdFS cid
+            compat_fs = unitIdFS cid
             compat_pn = PackageName compat_fs
             unit_id   = homeUnitId (hsc_home_unit hsc_env)
 

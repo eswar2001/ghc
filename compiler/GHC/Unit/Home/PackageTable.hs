@@ -70,6 +70,9 @@ module GHC.Unit.Home.PackageTable
   , hptCollectObjects
   , hptCollectModules
 
+    -- ** Memory dangerous queries
+  , concatHpt
+
     -- * Utilities
   , pprHPT
 
@@ -132,6 +135,7 @@ data HomePackageTable = HPT {
     -- about the table 'HomeModInfo' updates. On insertions we must make sure to
     -- update this field (insertions can only be done through the API exposed).
 
+-- ROMES:TODO: change to lastLoadedModule
     lastLoadedKey :: Maybe Unique
     -- ^ What was the last module loaded into this HPT?
     --
@@ -190,15 +194,14 @@ addHomeModInfoToHpt :: HomeModInfo -> HomePackageTable -> IO HomePackageTable
 addHomeModInfoToHpt hmi hpt = addToHpt hpt (moduleName (mi_module (hm_iface hmi))) hmi
   where
     addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
-    addToHpt HPT{table=hptr, hasHoles, lastLoadedKey} mn hmi = do
-      alreadyExisted <- atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, elemUDFM mn hpt))
+    addToHpt HPT{table=hptr, hasHoles} mn hmi = do
+      atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
       -- If the key already existed in the map, this insertion is overwriting
       -- the HMI of a previously loaded module (likely in rehydration).
       return
         HPT{ table = hptr
-           , hasHoles = hasHoles && isHoleModule (mi_semantic_module (hm_iface hmi))
-           , lastLoadedKey = if alreadyExisted then lastLoadedKey
-                                               else Just $! getUnique mn
+           , hasHoles = hasHoles || isHoleModule (mi_semantic_module (hm_iface hmi))
+           , lastLoadedKey = Just $! getUnique mn {- yes, even if we're overwriting something already in the map -}
            }
 
 ----------------------------------------------------------------------------------
