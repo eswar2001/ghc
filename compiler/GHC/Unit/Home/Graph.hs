@@ -60,7 +60,10 @@ module GHC.Unit.Home.Graph
   , unitEnv_foldWithKey
   , unitEnv_singleton
   , unitEnv_adjust
+  , unitEnv_keys
   , unitEnv_insert
+  , unitEnv_new
+  , unitEnv_lookup
   ) where
 
 import GHC.Prelude
@@ -298,6 +301,12 @@ newtype UnitEnvGraph v = UnitEnvGraph
   { unitEnv_graph :: Map UnitEnvGraphKey v
   } deriving (Functor, Foldable, Traversable)
 
+unitEnv_new :: Map UnitEnvGraphKey v -> UnitEnvGraph v
+unitEnv_new m =
+  UnitEnvGraph
+    { unitEnv_graph = m
+    }
+
 unitEnv_insert :: UnitEnvGraphKey -> v -> UnitEnvGraph v -> UnitEnvGraph v
 unitEnv_insert unitId env unitEnv = unitEnv
   { unitEnv_graph = Map.insert unitId env (unitEnv_graph unitEnv)
@@ -327,6 +336,9 @@ unitEnv_keys env = Map.keysSet (unitEnv_graph env)
 
 unitEnv_foldWithKey :: (b -> UnitEnvGraphKey -> a -> b) -> b -> UnitEnvGraph a -> b
 unitEnv_foldWithKey f z (UnitEnvGraph g)= Map.foldlWithKey' f z g
+
+unitEnv_lookup :: UnitEnvGraphKey -> UnitEnvGraph v -> v
+unitEnv_lookup u env = expectJust "unitEnv_lookup" $ unitEnv_lookup_maybe u env
 
 --------------------------------------------------------------------------------
 -- * Utilities

@@ -773,7 +773,7 @@ load' mhmi_cache how_much diag_wrapper mHscMessage mod_graph = do
     -- write an empty HPT to allow the old HPT to be GC'd.
 
     let pruneHomeUnitEnv hme = do
-          emptyHPT <- liftIO newHomePackageTable
+          emptyHPT <- liftIO emptyHomePackageTable
           pure hme{ homeUnitEnv_hpt = emptyHPT }
     hug' <- traverse pruneHomeUnitEnv (ue_home_unit_graph $ hsc_unit_env hsc_env)
     let ue' = (hsc_unit_env hsc_env){ ue_home_unit_graph = hug' }

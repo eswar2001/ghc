@@ -312,7 +312,7 @@ import GHC.Unit.Home.PackageTable
 
 newHscEnv :: FilePath -> DynFlags -> IO HscEnv
 newHscEnv top_dir dflags = do
-  hpt <- newHomePackageTable
+  hpt <- emptyHomePackageTable
   newHscEnvWithHUG top_dir dflags (homeUnitId_ dflags) (home_unit_graph hpt)
   where
     home_unit_graph hpt = HUG.unitEnv_singleton

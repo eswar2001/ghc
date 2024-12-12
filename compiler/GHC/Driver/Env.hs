@@ -28,6 +28,9 @@ module GHC.Driver.Env
    , lookupType
    , lookupIfaceByModule
    , mainModIs
+
+    -- * Legacy API
+   , hscUpdateHPT
    )
 where
 
@@ -326,3 +329,19 @@ discardIC hsc_env
     where
     home_unit = hsc_home_unit hsc_env
     old_name = ic_name old_ic
+
+
+--------------------------------------------------------------------------------
+-- * The Legacy API, should be removed after enough deprecation cycles
+--------------------------------------------------------------------------------
+
+{-# DEPRECATED hscUpdateHPT "Updating the HPT directly is no longer a supported \
+   \ operation. Instead, the HPT is an insert-only data structure. If you want to \
+   \ overwrite an existing entry, just use 'hscInsertHPT' to insert it again (it \
+   \ will override the existing entry if there is one). See 'GHC.Unit.Home.PackageTable' for more details." #-}
+hscUpdateHPT :: (HomePackageTable -> HomePackageTable) -> HscEnv -> HscEnv
+hscUpdateHPT f hsc_env = hsc_env { hsc_unit_env = updateHug (HUG.unitEnv_adjust upd (ue_currentUnit $ hsc_unit_env hsc_env)) ue }
+  where
+    ue = hsc_unit_env hsc_env
+    upd hue = hue { homeUnitEnv_hpt = f (homeUnitEnv_hpt hue) }
+

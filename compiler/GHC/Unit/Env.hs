@@ -102,6 +102,12 @@ module GHC.Unit.Env
     , hugAnnsBelow
     , hugRulesBelow
     , hugInstancesBelow
+
+
+    -- * Legacy API
+    --
+    -- | This API is deprecated!
+    , ue_units
     )
 where
 
@@ -471,3 +477,12 @@ There is also a template-haskell function, makeRelativeToProject, which uses the
 in order to allow users to offset their own relative paths.
 
 -}
+
+--------------------------------------------------------------------------------
+-- * Legacy API
+--------------------------------------------------------------------------------
+
+{-# DEPRECATED ue_units "Renamed to homeUnitState" #-}
+ue_units :: HasDebugCallStack => UnitEnv -> UnitState
+ue_units = homeUnitState
+

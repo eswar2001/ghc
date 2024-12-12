@@ -39,7 +39,7 @@
 module GHC.Unit.Home.PackageTable
   (
     HomePackageTable
-  , newHomePackageTable
+  , emptyHomePackageTable
 
     -- * Lookups in the HPT
   , lookupHpt
@@ -47,6 +47,7 @@ module GHC.Unit.Home.PackageTable
 
     -- * Extending the HPT
   , addHomeModInfoToHpt
+  , addHomeModInfosToHpt
 
     -- * Queries about home modules
   , hptHasHoles
@@ -85,13 +86,19 @@ module GHC.Unit.Home.PackageTable
     --
     -- In GHC itself these should be avoided.
   , hptInternalTableRef
+
+    -- * Legacy API
+    --
+    -- | This API is deprecated and meant to be removed.
+  , addToHpt
+  , addListToHpt
   ) where
 
 import GHC.Prelude
 import GHC.Data.Maybe
 
 import Data.IORef
-import Control.Monad ((<$!>))
+import Control.Monad ((<$!>), foldM)
 import qualified Data.Set as Set
 
 import GHC.Core.FamInstEnv
@@ -158,9 +165,9 @@ data HomePackageTable = HPT {
 -- Be careful not to share it across e.g. different units, since it uses a
 -- mutable variable under the hood to keep the monotonically increasing list of
 -- loaded modules.
-newHomePackageTable :: IO HomePackageTable
+emptyHomePackageTable :: IO HomePackageTable
 -- romes:todo: use a MutableArray directly?
-newHomePackageTable = do
+emptyHomePackageTable = do
   table <- newIORef emptyUDFM
   return HPT{table, hasHoles=False, lastLoadedKey=Nothing}
 
@@ -187,22 +194,39 @@ lookupHptByModule hpt mod
 
 -- | Add a new module to the HPT.
 --
--- A very fundamental operation of the HPT!
+-- An HPT is a monotonically increasing data structure, holding information about loaded modules in a package.
+-- This is the main function by which the HPT is extended or updated.
+--
+-- When the module of the inserted 'HomeModInfo' does not exist, a new entry in
+-- the HPT is created for that module name.
+-- When the module already has an entry, inserting a new one entry in the HPT
+-- will always overwrite the existing entry for that module.
 --
 -- $O(1)$
 addHomeModInfoToHpt :: HomeModInfo -> HomePackageTable -> IO HomePackageTable
 addHomeModInfoToHpt hmi hpt = addToHpt hpt (moduleName (mi_module (hm_iface hmi))) hmi
-  where
-    addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
-    addToHpt HPT{table=hptr, hasHoles} mn hmi = do
-      atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
-      -- If the key already existed in the map, this insertion is overwriting
-      -- the HMI of a previously loaded module (likely in rehydration).
-      return
-        HPT{ table = hptr
-           , hasHoles = hasHoles || isHoleModule (mi_semantic_module (hm_iface hmi))
-           , lastLoadedKey = Just $! getUnique mn {- yes, even if we're overwriting something already in the map -}
-           }
+
+{-# DEPRECATED addToHpt "Deprecated in favour of 'addHomeModInfoToHpt', as the module at which a 'HomeModInfo' is inserted should always be derived from the 'HomeModInfo' itself." #-}
+-- After deprecation cycle, move `addToHpt` to a `where` clause inside `addHomeModInfoToHpt`.
+addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
+addToHpt HPT{table=hptr, hasHoles} mn hmi = do
+  atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
+  -- If the key already existed in the map, this insertion is overwriting
+  -- the HMI of a previously loaded module (likely in rehydration).
+  return
+    HPT{ table = hptr
+       , hasHoles = hasHoles || isHoleModule (mi_semantic_module (hm_iface hmi))
+       , lastLoadedKey = Just $! getUnique mn {- yes, even if we're overwriting something already in the map -}
+       }
+
+-- | 'addHomeModInfoToHpt' for multiple module infos.
+addHomeModInfosToHpt :: HomePackageTable -> [HomeModInfo] -> IO HomePackageTable
+addHomeModInfosToHpt hpt = foldM (flip addHomeModInfoToHpt) hpt
+
+{-# DEPRECATED addListToHpt "Deprecated in favour of 'addHomeModInfosToHpt', as the module at which a 'HomeModInfo' is inserted should always be derived from the 'HomeModInfo' itself." #-}
+-- After deprecation cycle, remove.
+addListToHpt :: HomePackageTable -> [(ModuleName, HomeModInfo)] -> IO HomePackageTable
+addListToHpt hpt = foldM (uncurry . addToHpt) hpt
 
 ----------------------------------------------------------------------------------
 ---- * Queries
@@ -420,7 +444,7 @@ pprHPT HPT{table=hptr} = do
 -- listHMIToHpt :: [HomeModInfo] -> HomePackageTable
 
 ----------------------------------------------------------------------------------
--- Would be fine, but may lead to bad utilization
+-- Would be fine, but may lead to linearly traversing the HPT unnecessarily
 -- (e.g. `lastLoadedKey` superseded bad usages)
 ----------------------------------------------------------------------------------
 

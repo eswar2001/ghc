@@ -666,8 +666,8 @@ dontLeakTheHUG thing_inside = do
          | hptHasHoles hpt = True
          | otherwise = False
         pruneHomeUnitEnv hme = do
-          emptyHomePackageTable <- liftIO newHomePackageTable
-          return hme{ homeUnitEnv_hpt = emptyHomePackageTable }
+          emptyHPT <- liftIO emptyHomePackageTable
+          return hme{ homeUnitEnv_hpt = emptyHPT }
         unit_env_io
           | keepFor20509 (ue_hpt old_unit_env)
           = return old_unit_env

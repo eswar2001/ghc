@@ -852,12 +852,12 @@ initMulti unitArgsFiles  = do
     (dbs,unit_state,home_unit,mconstants) <- liftIO $ State.initUnits logger hue_flags cached_unit_dbs home_units
 
     updated_dflags <- liftIO $ updatePlatformConstants dflags mconstants
-    emptyHomePackageTable <- liftIO $ newHomePackageTable
+    emptyHpt <- liftIO $ emptyHomePackageTable
     pure $ HomeUnitEnv
       { homeUnitEnv_units = unit_state
       , homeUnitEnv_unit_dbs = Just dbs
       , homeUnitEnv_dflags = updated_dflags
-      , homeUnitEnv_hpt = emptyHomePackageTable
+      , homeUnitEnv_hpt = emptyHpt
       , homeUnitEnv_home_unit = Just home_unit
       }
 
@@ -954,7 +954,7 @@ offsetDynFlags dflags =
 createUnitEnvFromFlags :: NE.NonEmpty DynFlags -> IO (HomeUnitGraph, UnitId)
 createUnitEnvFromFlags unitDflags = do
   unitEnvList <- forM unitDflags $ \dflags -> do
-    emptyHpt <- newHomePackageTable
+    emptyHpt <- emptyHomePackageTable
     let newInternalUnitEnv =
           HUG.mkHomeUnitEnv emptyUnitState Nothing dflags emptyHpt Nothing
     return (homeUnitId_ dflags, newInternalUnitEnv)

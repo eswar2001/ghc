@@ -4495,7 +4495,7 @@ discardInterfaceCache =
 clearHPTs :: GhciMonad m => m ()
 clearHPTs = do
   let pruneHomeUnitEnv hme = liftIO $ do
-        emptyHpt <- newHomePackageTable
+        emptyHpt <- emptyHomePackageTable
         pure  hme{ homeUnitEnv_hpt = emptyHpt }
       discardMG hsc = hsc { hsc_mod_graph = GHC.emptyMG }
   modifySessionM $ \hsc_env -> do
