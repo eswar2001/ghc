@@ -81,11 +81,13 @@ module GHC.Unit.Home.PackageTable
     --
     -- | These provide access to the internals of the HomePackageTable to
     -- facilitate existing workflows that used the previous API. For instance,
-    -- if you were listing out all elements, you can keep doing so by reading
-    -- the internal IO ref and then listing the moduleenv contents out.
+    -- if you were listing out all elements or merging, you can keep doing so by reading
+    -- the internal IO ref and then using the moduleenv contents directly.
     --
-    -- In GHC itself these should be avoided.
+    -- In GHC itself these should be avoided, and other uses should justify why
+    -- it is not sufficient to go through the intended insert-only API.
   , hptInternalTableRef
+  , hptInternalTableFromRef
 
     -- * Legacy API
     --
@@ -117,6 +119,7 @@ import GHC.Unit.Module.ModDetails
 import GHC.Unit.Module.ModIface
 import GHC.Utils.Outputable
 import GHC.Builtin.Names (gHC_PRIM)
+import GHC.Utils.Misc (lastMaybe)
 
 -- | Helps us find information about modules in the home package
 data HomePackageTable = HPT {
@@ -210,6 +213,12 @@ addHomeModInfoToHpt hmi hpt = addToHpt hpt (moduleName (mi_module (hm_iface hmi)
 -- After deprecation cycle, move `addToHpt` to a `where` clause inside `addHomeModInfoToHpt`.
 addToHpt :: HomePackageTable -> ModuleName -> HomeModInfo -> IO HomePackageTable
 addToHpt HPT{table=hptr, hasHoles} mn hmi = do
+  -- ROMES:TODO: We could assert that we only overwrite with SrcFile infos:
+  -- Something like:
+  -- addToUDFM_C $ combineModules a b
+  -- x            | HsSrcFile <- mi_hsc_src (hm_iface a) = a
+  -- x            | otherwise = error "tried to overwrite with something other than SrcFile?"
+
   atomicModifyIORef' hptr (\hpt -> (addToUDFM hpt mn hmi, ()))
   -- If the key already existed in the map, this insertion is overwriting
   -- the HMI of a previously loaded module (likely in rehydration).
@@ -478,3 +487,15 @@ concatHpt f HPT{table} = do
 -- Use with care.
 hptInternalTableRef :: HomePackageTable -> IORef (DModuleNameEnv HomeModInfo)
 hptInternalTableRef = table
+
+-- | Construct a HomePackageTable from the IORef.
+-- Use with care, only if you can really justify going around the intended insert-only API.
+hptInternalTableFromRef :: IORef (DModuleNameEnv HomeModInfo) -> IO HomePackageTable
+hptInternalTableFromRef ref = do
+  table {- use this to compute the other fields -} <- readIORef ref
+  return HPT {
+    table = ref,
+    hasHoles = any (isHoleModule . mi_semantic_module . hm_iface) table, -- going to be removed altogether soon
+    lastLoadedKey = lastMaybe (map fst $ udfmToList table) -- this probably as well...
+  }
+

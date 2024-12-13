@@ -55,7 +55,7 @@ module GHC.Unit.Home.Graph
   , pprHomeUnitEnv
 
   -- * Auxiliary internal structure
-  , UnitEnvGraph
+  , UnitEnvGraph(..)
   , unitEnv_lookup_maybe
   , unitEnv_foldWithKey
   , unitEnv_singleton
