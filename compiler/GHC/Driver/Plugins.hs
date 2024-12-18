@@ -56,6 +56,7 @@ import GHC.Driver.Phases
 import GHC.Unit.Module
 import GHC.Unit.Module.ModIface
 import GHC.Unit.Module.ModSummary
+import GHC.Unit.Module.ModGuts
 
 import qualified GHC.Tc.Types
 import GHC.Tc.Types ( TcGblEnv, IfM, TcM, tcg_rn_decls, tcg_rn_exports  )
@@ -129,6 +130,7 @@ data Plugin = Plugin {
     -- the loading of the plugin interface. Tools that rely on information from
     -- modules other than the currently compiled one should implement this
     -- function.
+  , desugarResultAction :: [CommandLineOption] -> (Maybe ModSummary) -> TcGblEnv -> ModGuts -> Hsc ModGuts
   }
 
 -- Note [Source plugins]
@@ -221,6 +223,7 @@ defaultPlugin = Plugin {
       , typeCheckResultAction = \_ _ -> return
       , spliceRunAction       = \_ -> return
       , interfaceLoadAction   = \_ -> return
+      , desugarResultAction   = \_ _ _ guts -> return guts
     }
 
 

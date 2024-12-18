@@ -657,19 +657,22 @@ tcRnModule' sum save_rn_syntax mod = do
 -- | Convert a typechecked module to Core
 hscDesugar :: HscEnv -> ModSummary -> TcGblEnv -> IO ModGuts
 hscDesugar hsc_env mod_summary tc_result =
-    runHsc hsc_env $ hscDesugar' (ms_location mod_summary) tc_result
+    runHsc hsc_env $ hscDesugar' (Just mod_summary) (ms_location mod_summary) tc_result
 
-hscDesugar' :: ModLocation -> TcGblEnv -> Hsc ModGuts
-hscDesugar' mod_location tc_result = do
+hscDesugar' :: Maybe ModSummary -> ModLocation -> TcGblEnv -> Hsc ModGuts
+hscDesugar' mod_summary mod_location tc_result = do
     hsc_env <- getHscEnv
     r <- ioMsgMaybe $
       {-# SCC "deSugar" #-}
       deSugar hsc_env mod_location tc_result
 
+    -- Run plugins' desugar actions
+    r' <- withPlugins hsc_env (\p opts mod_guts -> desugarResultAction p opts mod_summary tc_result mod_guts) r
+
     -- always check -Werror after desugaring, this is the last opportunity for
     -- warnings to arise before the backend.
     handleWarnings
-    return r
+    return r'
 
 -- | Make a 'ModDetails' from the results of typechecking. Used when
 -- typechecking only, as opposed to full compilation.
@@ -949,7 +952,7 @@ finish summary tc_result mb_old_hash = do
   -- HsSrcFile Module.
   mb_desugar <-
       if ms_mod summary /= gHC_PRIM && hsc_src == HsSrcFile
-      then Just <$> hscDesugar' (ms_location summary) tc_result
+      then Just <$> hscDesugar' (Just summary) (ms_location summary) tc_result
       else pure Nothing
 
   -- Simplify, if appropriate, and (whether we simplified or not) generate an
@@ -2003,7 +2006,7 @@ hscParsedDecls hsc_env decls = runInteractiveHsc hsc_env $ do
                                       ml_hi_file   = panic "hsDeclsWithLocation:ml_hi_file",
                                       ml_obj_file  = panic "hsDeclsWithLocation:ml_obj_file",
                                       ml_hie_file  = panic "hsDeclsWithLocation:ml_hie_file" }
-    ds_result <- hscDesugar' iNTERACTIVELoc tc_gblenv
+    ds_result <- hscDesugar' Nothing iNTERACTIVELoc tc_gblenv
 
     {- Simplify -}
     simpl_mg <- liftIO $ do
